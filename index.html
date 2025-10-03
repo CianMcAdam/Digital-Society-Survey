@@ -85,7 +85,7 @@
         const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4"; 
         
         // 🔹 Connect to Supabase: Both variables are correctly used here.
-        const supabase = window.supabase.createClient(https://ttqxpcstznjxkmznyxis.supabase.co, eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4 );
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
         let user = null;
         let responses = { present: null, future: null };
@@ -215,11 +215,9 @@
             }
         }
 
-        // 🔹 Build the two plots on load
-        window.onload = function() {
-            makePlot("plot-present", "result-present", "Present");
-            makePlot("plot-future", "result-future", "Future");
-        };
+        // 🔹 Build the two plots: Executing immediately after functions are defined.
+        makePlot("plot-present", "result-present", "Present");
+        makePlot("plot-future", "result-future", "Future");
     </script>
 </body>
 </html>
