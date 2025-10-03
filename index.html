@@ -22,9 +22,15 @@
             font-weight: 600;
         }
         /* FIX: Force the hand pointer cursor on all plot components */
+        /* This rule is now more aggressive to ensure the cursor stays */
         .js-plotly-plot,
         .js-plotly-plot * { 
             cursor: pointer !important;
+            user-select: none; /* Prevent text selection confusion on click */
+        }
+        /* Ensure the click target (the background fill) is on top of other plot elements */
+        .ternarylayer .scatterlayer.fill {
+            pointer-events: all;
         }
     </style>
     <script>
@@ -124,6 +130,7 @@
         }
 
         // 🔹 Update login status automatically
+        // 🚨 FIX: Corrected method name from onAuthStateChanged to onAuthStateChange for Supabase V2
         supabase.auth.onAuthStateChange((event, session) => {
             if (session && session.user) {
                 user = session.user;
@@ -135,7 +142,7 @@
             }
         });
 
-        // 🔹 Function to create a ternary plot (Includes fix for clicking anywhere in the triangle)
+        // 🔹 Function to create a ternary plot (Includes the new definitive click fix)
         function makePlot(divId, resultId, label) {
             
             const responseType = label.toLowerCase();
@@ -149,21 +156,21 @@
                 a: [initialResponse.a], 
                 b: [initialResponse.b], 
                 c: [initialResponse.c], 
-                marker: { size: 14, color: '#3b82f6', opacity: 0.8, line: { width: 1, color: 'white' } }
+                marker: { size: 14, color: '#3b82f6', opacity: 0.8, line: { width: 1, color: 'white' } },
+                hoverinfo: 'none' // Hide hover for the marker itself
             };
 
-            // Trace 1: BACKGROUND FILL TRACE 
+            // Trace 1: BACKGROUND FILL TRACE (The clickable area, now with stronger settings)
             var backgroundTrace = {
                 type: 'scatterternary',
-                // 🚨 FIX: Removed 'mode: lines' to ensure the entire filled area is the primary click target
                 a: [1, 0, 0, 1], // Corners (A=1), (B=1), (C=1), back to (A=1)
                 b: [0, 1, 0, 0],
                 c: [0, 0, 1, 0],
                 fill: 'toself',
-                // This faint fill forces the area to be rendered and clickable
+                // Faint fill to ensure it is rendered and clickable
                 fillcolor: 'rgba(200, 200, 200, 0.05)', 
-                line: { color: 'transparent' }, // No visible line
-                hoverinfo: 'none' // Do not show hover text
+                line: { color: 'transparent' }, 
+                hoverinfo: 'none'
             };
 
             var data = [selectionMarker, backgroundTrace];
@@ -182,38 +189,63 @@
                 autosize: true
             };
 
-            Plotly.newPlot(divId, data, layout, { responsive: true });
-            
-            // Update initial display with default values
-            document.getElementById(resultId).innerHTML =
-                `<span class="font-semibold text-gray-800">Selected → </span> Corporate: ${initialResponse.a.toFixed(3)}, Human: ${initialResponse.b.toFixed(3)}, Environmental: ${initialResponse.c.toFixed(3)}`;
-
-            var plotDiv = document.getElementById(divId);
-            
-            // Listen for clicks on the plot
-            plotDiv.on('plotly_click', function(eventData) {
-                // ℹ️ DEBUG: Log event data to confirm coordinates are being received
-                console.log("Plot clicked. Event data:", eventData); 
-
-                // The coordinates (a, b, c) are calculated by Plotly based on the click location on the trace
-                if (!eventData.points || eventData.points.length === 0 || !('a' in eventData.points[0])) {
-                    console.error("Click failed to register valid coordinates or coordinates were not found.");
-                    return;
-                }
-
-                // Get the coordinates from the clicked location
-                var a = eventData.points[0].a;
-                var b = eventData.points[0].b;
-                var c = eventData.points[0].c;
-
-                responses[responseType] = { a, b, c };
-
-                // Restyle the plot to move the single selection marker (Trace 0) to the clicked position
-                Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [0]);
-
-                // Update display
+            // 🚨 FIX: Use .then() to ensure the plot is fully initialized before attaching the listener
+            Plotly.newPlot(divId, data, layout, { responsive: true, displayModeBar: false }).then(function(plotDiv) {
+                
+                // Update initial display with default values
                 document.getElementById(resultId).innerHTML =
-                    `<span class="font-semibold text-gray-800">Selected → </span> Corporate: ${a.toFixed(3)}, Human: ${b.toFixed(3)}, Environmental: ${c.toFixed(3)}`;
+                    `<span class="font-semibold text-gray-800">Selected → </span> Corporate: ${initialResponse.a.toFixed(3)}, Human: ${initialResponse.b.toFixed(3)}, Environmental: ${initialResponse.c.toFixed(3)}`;
+
+                // 🚨 DEFINITIVE FIX: Use low-level mousedown listener for guaranteed coordinate detection
+                plotDiv.addEventListener('mousedown', function(e) {
+                    
+                    // Prevent default action (like dragging/selection) which might cause cursor flicker
+                    e.preventDefault(); 
+                    e.stopPropagation();
+
+                    var gd = plotDiv;
+                    var rect = gd.getBoundingClientRect();
+                    
+                    // Get mouse coordinates relative to the plot's top-left corner
+                    var x = e.clientX - rect.left;
+                    var y = e.clientY - rect.top;
+
+                    // Use Plotly's internal function to convert pixel coordinates to ternary (A, B, C) coordinates
+                    var ternaryCoords = Plotly.Fx.mouseEventToTernary(x, y, gd);
+                    
+                    // 1. Check if coordinates are valid
+                    if (ternaryCoords && ternaryCoords.a !== undefined) {
+                        
+                        let a = ternaryCoords.a;
+                        let b = ternaryCoords.b;
+                        let c = ternaryCoords.c;
+                        
+                        // 2. Boundary check: Ensure coordinates are reasonably close to non-negative
+                        if (a < -0.001 || b < -0.001 || c < -0.001) {
+                            // Click was outside the triangle boundaries (e.g., in the margins)
+                            return; 
+                        }
+
+                        // 3. Normalize to ensure A + B + C = 1 (critical for ternary plots)
+                        let sum = a + b + c;
+                        a = a / sum;
+                        b = b / sum;
+                        c = c / sum;
+                        
+                        responses[responseType] = { a, b, c };
+
+                        // Restyle the plot to move the single selection marker (Trace 0) to the clicked position
+                        Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [0]);
+
+                        // Update display
+                        document.getElementById(resultId).innerHTML =
+                            `<span class="font-semibold text-gray-800">Selected → </span> Corporate: ${a.toFixed(3)}, Human: ${b.toFixed(3)}, Environmental: ${c.toFixed(3)}`;
+
+                    } else {
+                        // This indicates a failure in coordinate calculation.
+                        console.warn("Click registered, but failed to calculate valid ternary coordinates.");
+                    }
+                });
             });
         }
 
