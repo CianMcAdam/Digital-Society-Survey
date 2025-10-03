@@ -21,6 +21,10 @@
         .ternary-plot .g-gtitle {
             font-weight: 600;
         }
+        /* New: Make the plot area visually indicate it's clickable */
+        .js-plotly-plot {
+            cursor: pointer;
+        }
     </style>
     <script>
         tailwind.config = {
@@ -80,11 +84,11 @@
     </div>
 
     <script>
-        // 🔹 Supabase Configuration (Updated with your key and URL)
+        // 🔹 Supabase Configuration (Explicitly including your provided key and URL)
         const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co"; 
         const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4"; 
         
-        // 🔹 Connect to Supabase: Both variables are correctly used here.
+        // 🔹 Connect to Supabase
         const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
         let user = null;
@@ -95,7 +99,7 @@
             const email = prompt("Enter your email to receive a login link:");
             if (!email) return;
 
-            // Using window.location.origin, which is the standard practice. Requires correct Supabase redirect settings.
+            // Using window.location.origin for the redirect URL
             const { error } = await supabase.auth.signInWithOtp({
                 email,
                 options: { emailRedirectTo: window.location.origin }
@@ -121,7 +125,7 @@
             }
         });
 
-        // 🔹 Function to create a ternary plot (FIXED for reliable click coordinates)
+        // 🔹 Function to create a ternary plot (Includes fix for clicking anywhere in the triangle)
         function makePlot(divId, resultId, label) {
             
             // Trace 0: The user's selection marker (visible)
@@ -134,8 +138,7 @@
                 marker: { size: 14, color: '#3b82f6', opacity: 0.8, line: { width: 1, color: 'white' } }
             };
 
-            // Trace 1: INVISIBLE BACKGROUND TRACE (FIX)
-            // This trace covers the entire triangle, ensuring Plotly calculates click coordinates anywhere inside.
+            // Trace 1: BACKGROUND FILL TRACE (Ensures Plotly registers click events everywhere)
             var backgroundTrace = {
                 type: 'scatterternary',
                 mode: 'lines',
@@ -143,7 +146,8 @@
                 b: [0, 1, 0, 0],
                 c: [0, 0, 1, 0],
                 fill: 'toself',
-                fillcolor: 'rgba(0, 0, 0, 0)', // Fully transparent
+                // This faint fill forces the area to be rendered and clickable
+                fillcolor: 'rgba(200, 200, 200, 0.05)', 
                 line: { color: 'transparent' }, // No visible line
                 hoverinfo: 'none' // Do not show hover text
             };
@@ -170,20 +174,20 @@
             
             // Listen for clicks on the plot
             plotDiv.on('plotly_click', function(eventData) {
-                // Check if the event data contains the required ternary coordinates
+                // The coordinates (a, b, c) are calculated by Plotly based on the click location on the trace
                 if (!eventData.points || eventData.points.length === 0 || !('a' in eventData.points[0])) {
                     console.error("Click failed to register valid coordinates.");
                     return;
                 }
 
-                // Get the coordinates from the clicked location (Plotly calculates this for the surface)
+                // Get the coordinates from the clicked location
                 var a = eventData.points[0].a;
                 var b = eventData.points[0].b;
                 var c = eventData.points[0].c;
 
                 responses[label.toLowerCase()] = { a, b, c };
 
-                // Restyle the plot to move the single marker (Trace 0) to the clicked position
+                // Restyle the plot to move the single selection marker (Trace 0) to the clicked position
                 Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [0]);
 
                 // Update display
@@ -236,3 +240,4 @@
     </script>
 </body>
 </html>
+
