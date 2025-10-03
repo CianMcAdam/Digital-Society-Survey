@@ -31,9 +31,9 @@
   <p id="result-future"></p>
 
   <script>
-    // 🔹 Connect to Supabase (replace with your own values)
-    const supabaseUrl = "https://YOUR-PROJECT.supabase.co";
-    const supabaseKey = "YOUR-ANON-KEY";
+    // 🔹 Connect to Supabase (your details added)
+    const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
     const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
     let user = null;
@@ -65,7 +65,6 @@
 
     // 🔹 Function to create a ternary plot (click anywhere inside triangle)
     function makePlot(divId, resultId, label) {
-      // Empty scatter for the user’s choice
       var data = [{
         type: 'scatterternary',
         mode: 'markers',
@@ -111,35 +110,4 @@
     // 🔹 Submit response to Supabase
     async function submitResponse(type) {
       if (!responses[type]) {
-        alert("Please click inside the plot before submitting.");
-        return;
-      }
-      if (!user) {
-        alert("Please log in first.");
-        return;
-      }
-
-      const { error } = await supabase
-        .from("responses")
-        .insert([{
-          user_id: user.id,
-          type: type,
-          a: responses[type].a,
-          b: responses[type].b,
-          c: responses[type].c
-        }]);
-
-      if (error) {
-        alert("Error: " + error.message + " (You may have already submitted for this plot.)");
-      } else {
-        alert("✅ Response submitted!");
-      }
-    }
-
-    // 🔹 Build the two plots
-    makePlot("plot-present", "result-present", "Present");
-    makePlot("plot-future", "result-future", "Future");
-  </script>
-</body>
-</html>
-
+        alert(
