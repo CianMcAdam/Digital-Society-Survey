@@ -1,136 +1,225 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Ternary Plot Survey with Supabase Login</title>
-  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-  <script src="https://unpkg.com/@supabase/supabase-js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ternary Plot Survey with Supabase Auth</title>
+    <!-- Load Plotly for Ternary Plots (UPDATED to specific version 2.32.0) -->
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <!-- Load Supabase for Authentication and Database -->
+    <script src="https://unpkg.com/@supabase/supabase-js"></script>
+    <!-- Load Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles to ensure plots are responsive and centered */
+        .plot-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        /* Style for the ternary plot axis labels */
+        .ternary-plot .g-gtitle {
+            font-weight: 600;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-  <h1>Ternary Plot Survey</h1>
-  <p>
-    Please indicate the relative importance of
-    <b>Corporate Rights</b>, <b>Human Rights</b>, and <b>Environmental Rights</b>.
-    You must log in before submitting.
-  </p>
+<body class="bg-gray-50 min-h-screen p-4 sm:p-8 font-sans">
+    <div class="max-w-4xl mx-auto bg-white p-6 sm:p-10 rounded-xl shadow-2xl">
+        <h1 class="text-4xl font-extrabold text-gray-900 mb-2">Ternary Plot Survey</h1>
+        <p class="text-lg text-gray-600 mb-6">
+            Please indicate the relative importance of
+            <b class="text-blue-600">Corporate Rights (A)</b>,
+            <b class="text-green-600">Human Rights (B)</b>, and
+            <b class="text-red-600">Environmental Rights (C)</b>.
+            You must log in before submitting.
+        </p>
 
-  <!-- Login -->
-  <button onclick="signIn()">Login with Email</button>
-  <p id="auth-status">Not logged in</p>
+        <!-- Login Section -->
+        <div class="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200 flex flex-col sm:flex-row items-start sm:items-center justify-between">
+            <p id="auth-status" class="text-blue-800 font-medium mr-4">Not logged in</p>
+            <button onclick="signIn()" class="mt-2 sm:mt-0 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition duration-150">
+                Login with Magic Link
+            </button>
+        </div>
 
-  <!-- Present Day Plot -->
-  <h2>Present Day Values</h2>
-  <div id="plot-present" style="width:600px;height:600px;"></div>
-  <button onclick="submitResponse('present')">Submit Present Response</button>
-  <p id="result-present"></p>
+        <!-- Present Day Plot -->
+        <div class="mb-10 border-t pt-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">1. Present Day Values</h2>
+            <div id="plot-present" class="plot-container h-[400px] sm:h-[600px]"></div>
+            <div class="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4 mt-6">
+                <p id="result-present" class="text-gray-700 italic text-center sm:text-left">Click inside the plot to select your values.</p>
+                <button onclick="submitResponse('present')" class="px-6 py-3 bg-green-500 text-white font-bold rounded-lg shadow-lg hover:bg-green-600 transition duration-150 transform hover:scale-105">
+                    Submit Present Response
+                </button>
+            </div>
+        </div>
 
-  <!-- Future Plot -->
-  <h2>Values in 2075</h2>
-  <div id="plot-future" style="width:600px;height:600px;"></div>
-  <button onclick="submitResponse('future')">Submit Future Response</button>
-  <p id="result-future"></p>
+        <!-- Future Plot -->
+        <div class="mb-10 border-t pt-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">2. Values in 2075</h2>
+            <div id="plot-future" class="plot-container h-[400px] sm:h-[600px]"></div>
+            <div class="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4 mt-6">
+                <p id="result-future" class="text-gray-700 italic text-center sm:text-left">Click inside the plot to select your values.</p>
+                <button onclick="submitResponse('future')" class="px-6 py-3 bg-green-500 text-white font-bold rounded-lg shadow-lg hover:bg-green-600 transition duration-150 transform hover:scale-105">
+                    Submit Future Response
+                </button>
+            </div>
+        </div>
 
-  <script>
-    // 🔹 Connect to Supabase (replace with your own values)
-    const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
-    const supabase = supabase.createClient("https://ttqxpcstznjxkmznyxis.supabase.co";, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";);
+    </div>
 
-    let user = null;
-    let responses = { present: null, future: null };
+    <script>
+        // 🔹 Supabase Configuration (Updated with your key and URL)
+        const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co"; 
+        const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4"; 
+        
+        // 🔹 Connect to Supabase: Both variables are correctly used here.
+        const supabase = window.supabase.createClient(https://ttqxpcstznjxkmznyxis.supabase.co, eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4 );
 
-    // 🔹 Email Magic Link Login
-    async function signIn() {
-      const email = prompt("Enter your email to receive a login link:");
-      if (!email) return;
-      const { error } = await supabase.auth.signInWithOtp({ email });
-      if (error) {
-        alert("Error: " + error.message);
-      } else {
-        alert("✅ Check your email for a magic login link. After clicking it, you’ll return here and be logged in automatically.");
-      }
-    }
+        let user = null;
+        let responses = { present: null, future: null };
 
-    // 🔹 Update login status automatically after magic link
-    supabase.auth.onAuthStateChange((event, session) => {
-      if (session && session.user) {
-        user = session.user;
-        document.getElementById("auth-status").innerText =
-          "✅ Welcome! You are logged in as: " + user.email;
-      } else {
-        user = null;
-        document.getElementById("auth-status").innerText = "Not logged in";
-      }
-    });
+        // 🔹 Email Magic Link Login
+        async function signIn() {
+            const email = prompt("Enter your email to receive a login link:");
+            if (!email) return;
 
-    // 🔹 Function to create a ternary plot
-    function makePlot(divId, resultId, label) {
-      var data = [{
-        type: 'scatterternary',
-        mode: 'markers',
-        a: [],
-        b: [],
-        c: [],
-        marker: { size: 14, color: 'blue' }
-      }];
+            // Use window.location.origin to ensure the user returns to the correct page
+            const { error } = await supabase.auth.signInWithOtp({
+                email,
+                options: { emailRedirectTo: window.location.origin }
+            });
 
-      var layout = {
-        ternary: {
-          aaxis: { title: "Corporate Rights", min: 0.01 },
-          baxis: { title: "Human Rights", min: 0.01 },
-          caxis: { title: "Environmental Rights", min: 0.01 }
-        },
-        title: label
-      };
+            if (error) {
+                console.error("Login error:", error);
+                alert("Login Error: " + error.message);
+            } else {
+                alert("✅ Success! Check your email for a magic login link. After clicking it, you’ll return here and be logged in automatically.");
+            }
+        }
 
-      Plotly.newPlot(divId, data, layout);
+        // 🔹 Update login status automatically
+        supabase.auth.onAuthStateChange((event, session) => {
+            if (session && session.user) {
+                user = session.user;
+                document.getElementById("auth-status").innerHTML =
+                    `<span class="text-green-600 font-bold">✅ Logged in!</span> Email: ${user.email} | User ID: ${user.id.substring(0, 8)}...`;
+            } else {
+                user = null;
+                document.getElementById("auth-status").innerText = "Not logged in";
+            }
+        });
 
-      var plotDiv = document.getElementById(divId);
-      plotDiv.on('plotly_click', function(eventData) {
-        var a = eventData.points[0].a;
-        var b = eventData.points[0].b;
-        var c = eventData.points[0].c;
+        // 🔹 Function to create a ternary plot (FIXED for reliable click coordinates)
+        function makePlot(divId, resultId, label) {
+            // CRITICAL FIX: Initialize with one centered dummy point (1/3, 1/3, 1/3).
+            var data = [{
+                type: 'scatterternary',
+                mode: 'markers',
+                a: [1/3], // Corporate Rights
+                b: [1/3], // Human Rights
+                c: [1/3], // Environmental Rights
+                marker: { size: 14, color: '#3b82f6', opacity: 0.8, line: { width: 1, color: 'white' } }
+            }];
 
-        responses[label.toLowerCase()] = { a, b, c };
+            var layout = {
+                ternary: {
+                    sum: 1, // Ensure the sum of a, b, c is 1 (or 100%)
+                    aaxis: { title: "Corporate Rights (A)", min: 0.00, titlefont: { color: '#3b82f6', size: 16 } },
+                    baxis: { title: "Human Rights (B)", min: 0.00, titlefont: { color: '#10b981', size: 16 } },
+                    caxis: { title: "Environmental Rights (C)", min: 0.00, titlefont: { color: '#ef4444', size: 16 } }
+                },
+                title: {
+                    text: `${label} Values`,
+                    font: { size: 20 }
+                },
+                // Removed fixed height to rely on CSS and responsive resizing
+                autosize: true
+            };
 
-        Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [0]);
+            Plotly.newPlot(divId, data, layout, { responsive: true });
 
-        document.getElementById(resultId).innerHTML =
-          `You chose → Corporate: ${a.toFixed(2)}, Human: ${b.toFixed(2)}, Environmental: ${c.toFixed(2)}`;
-      });
-    }
+            var plotDiv = document.getElementById(divId);
+            
+            // Listen for clicks on the plot
+            plotDiv.on('plotly_click', function(eventData) {
+                // Check if the event data contains the required ternary coordinates
+                if (!eventData.points || eventData.points.length === 0 || !('a' in eventData.points[0])) {
+                    console.error("Click failed to register valid coordinates.");
+                    return;
+                }
 
-    // 🔹 Submit response to Supabase
-    async function submitResponse(type) {
-      if (!responses[type]) {
-        alert("Please click inside the plot before submitting.");
-        return;
-      }
-      if (!user) {
-        alert("Please log in first.");
-        return;
-      }
+                // Get the coordinates from the clicked location
+                var a = eventData.points[0].a;
+                var b = eventData.points[0].b;
+                var c = eventData.points[0].c;
 
-      const { error } = await supabase
-        .from("responses")
-        .insert([{
-          user_id: user.id,
-          type: type,
-          a: responses[type].a,
-          b: responses[type].b,
-          c: responses[type].c
-        }]);
+                responses[label.toLowerCase()] = { a, b, c };
 
-      if (error) {
-        alert("Error: " + error.message + " (You may have already submitted for this plot.)");
-      } else {
-        alert("✅ Response submitted!");
-      }
-    }
+                // Restyle the plot to move the single marker to the clicked position
+                Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [0]);
 
-    // 🔹 Build the two plots
-    makePlot("plot-present", "result-present", "Present");
-    makePlot("plot-future", "result-future", "Future");
-  </script>
+                // Update display
+                document.getElementById(resultId).innerHTML =
+                    `<span class="font-semibold text-gray-800">Selected → </span> Corporate: ${a.toFixed(3)}, Human: ${b.toFixed(3)}, Environmental: ${c.toFixed(3)}`;
+            });
+        }
+
+        // 🔹 Submit response to Supabase (IMPROVED: Login check moved up)
+        async function submitResponse(type) {
+            // 1. Check for user login status first
+            if (!user) {
+                alert("🛑 Please log in first using the magic link button.");
+                return;
+            }
+
+            // 2. Check if the user has selected a point
+            if (!responses[type]) {
+                alert("🛑 Please click inside the plot before submitting your response.");
+                return;
+            }
+
+            const payload = responses[type];
+
+            const { error } = await supabase
+                .from("responses")
+                .insert([{
+                    user_id: user.id,
+                    type: type,
+                    a: payload.a,
+                    b: payload.b,
+                    c: payload.c
+                }]);
+
+            if (error) {
+                console.error("Submission Error:", error);
+                // Supabase error codes for existing record might be 23505 (unique constraint violation)
+                if (error.code === '23505') {
+                    alert(`⚠️ Error: It looks like you have already submitted your '${type}' response.`);
+                } else {
+                    alert(`Submission Error: ${error.message}`);
+                }
+            } else {
+                alert(`✅ Your ${type} response was successfully submitted!`);
+            }
+        }
+
+        // 🔹 Build the two plots on load
+        window.onload = function() {
+            makePlot("plot-present", "result-present", "Present");
+            makePlot("plot-future", "result-future", "Future");
+        };
+    </script>
 </body>
 </html>
