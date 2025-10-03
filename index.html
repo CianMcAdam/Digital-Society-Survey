@@ -21,9 +21,10 @@
         .ternary-plot .g-gtitle {
             font-weight: 600;
         }
-        /* New: Make the plot area visually indicate it's clickable */
-        .js-plotly-plot {
-            cursor: pointer;
+        /* FIX: Force the hand pointer cursor on all plot components */
+        .js-plotly-plot,
+        .js-plotly-plot * { 
+            cursor: pointer !important;
         }
     </style>
     <script>
