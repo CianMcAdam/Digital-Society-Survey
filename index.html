@@ -92,7 +92,16 @@
         const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
         let user = null;
-        let responses = { present: null, future: null };
+        
+        // Define initial responses at the center (1/3, 1/3, 1/3) to satisfy the NOT NULL constraint 
+        const defaultA = 1/3;
+        const defaultB = 1/3;
+        const defaultC = 1/3;
+
+        let responses = { 
+            present: { a: defaultA, b: defaultB, c: defaultC }, 
+            future: { a: defaultA, b: defaultB, c: defaultC } 
+        };
 
         // 🔹 Email Magic Link Login
         async function signIn() {
@@ -128,13 +137,17 @@
         // 🔹 Function to create a ternary plot (Includes fix for clicking anywhere in the triangle)
         function makePlot(divId, resultId, label) {
             
+            const responseType = label.toLowerCase();
+            const initialResponse = responses[responseType];
+
             // Trace 0: The user's selection marker (visible)
             var selectionMarker = {
                 type: 'scatterternary',
                 mode: 'markers',
-                a: [1/3], // Corporate Rights (initial position)
-                b: [1/3], // Human Rights
-                c: [1/3], // Environmental Rights
+                // Use the initialized default response values
+                a: [initialResponse.a], 
+                b: [initialResponse.b], 
+                c: [initialResponse.c], 
                 marker: { size: 14, color: '#3b82f6', opacity: 0.8, line: { width: 1, color: 'white' } }
             };
 
@@ -169,6 +182,10 @@
             };
 
             Plotly.newPlot(divId, data, layout, { responsive: true });
+            
+            // Update initial display with default values
+            document.getElementById(resultId).innerHTML =
+                `<span class="font-semibold text-gray-800">Selected → </span> Corporate: ${initialResponse.a.toFixed(3)}, Human: ${initialResponse.b.toFixed(3)}, Environmental: ${initialResponse.c.toFixed(3)}`;
 
             var plotDiv = document.getElementById(divId);
             
@@ -185,7 +202,7 @@
                 var b = eventData.points[0].b;
                 var c = eventData.points[0].c;
 
-                responses[label.toLowerCase()] = { a, b, c };
+                responses[responseType] = { a, b, c };
 
                 // Restyle the plot to move the single selection marker (Trace 0) to the clicked position
                 Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [0]);
@@ -204,13 +221,13 @@
                 return;
             }
 
-            // 2. Check if the user has selected a point
-            if (!responses[type]) {
-                alert("🛑 Please click inside the plot before submitting your response.");
-                return;
-            }
-
             const payload = responses[type];
+
+            // 🚨 Defensive Check: Ensure the values are finite numbers before insertion
+            if (!isFinite(payload.a) || !isFinite(payload.b) || !isFinite(payload.c)) {
+                 alert("🛑 Error: Cannot submit. Please click inside the plot to select valid values before submitting.");
+                 return;
+            }
 
             const { error } = await supabase
                 .from("responses")
@@ -240,4 +257,3 @@
     </script>
 </body>
 </html>
-
