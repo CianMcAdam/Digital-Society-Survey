@@ -110,4 +110,34 @@
     // 🔹 Submit response to Supabase
     async function submitResponse(type) {
       if (!responses[type]) {
-        alert(
+        alert("Please click inside the plot before submitting.");
+        return;
+      }
+      if (!user) {
+        alert("Please log in first.");
+        return;
+      }
+
+      const { error } = await supabase
+        .from("responses")
+        .insert([{
+          user_id: user.id,
+          type: type,
+          a: responses[type].a,
+          b: responses[type].b,
+          c: responses[type].c
+        }]);
+
+      if (error) {
+        alert("Error: " + error.message + " (You may have already submitted for this plot.)");
+      } else {
+        alert("✅ Response submitted!");
+      }
+    }
+
+    // 🔹 Build the two plots
+    makePlot("plot-present", "result-present", "Present");
+    makePlot("plot-future", "result-future", "Future");
+  </script>
+</body>
+</html>
