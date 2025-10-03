@@ -110,6 +110,60 @@
             future: { a: defaultA, b: defaultB, c: defaultC } 
         };
 
+        // 🔹 Helper functions for custom pixel-to-ternary conversion (replaces Plotly.Fx.mouseEventToTernary)
+        
+        // Function to calculate the signed area (or half the cross product) for barycentric coordinates
+        function sign(p1, p2, p3) {
+            // (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y)
+            return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+        }
+
+        // Function to convert pixel coordinates (x, y) to ternary coordinates (a, b, c)
+        function pixelToTernary(x, y, gd) {
+            const layout = gd._fullLayout.ternary;
+            
+            // Get the pixel coordinates of the three vertices from Plotly's layout anchors
+            const A = { x: layout.ap[0], y: layout.ap[1] }; // Corporate Rights (A) (Right Vertex)
+            const B = { x: layout.bp[0], y: layout.bp[1] }; // Human Rights (B) (Top Vertex)
+            const C = { x: layout.cp[0], y: layout.cp[1] }; // Environmental Rights (C) (Bottom-Left Vertex)
+            const P = { x: x, y: y }; // Clicked Point
+
+            // Calculate the signed area of the total triangle ABC
+            const AreaABC_Signed = sign(A, B, C);
+            
+            if (Math.abs(AreaABC_Signed) < 1e-6) return null; // Area is zero (degenerate triangle)
+
+            // Calculate the signed areas of the sub-triangles formed by point P
+            const AreaPBC_Signed = sign(P, B, C); // Area opposite vertex A
+            const AreaPAC_Signed = sign(P, A, C); // Area opposite vertex B
+            const AreaPAB_Signed = sign(P, A, B); // Area opposite vertex C
+
+            // Barycentric coordinates (which are the ternary coordinates)
+            let a_ternary = AreaPBC_Signed / AreaABC_Signed;
+            let b_ternary = AreaPAC_Signed / AreaABC_Signed;
+            let c_ternary = AreaPAB_Signed / AreaABC_Signed;
+
+            // Check if the point is outside the plot area (negative weights or sum > 1 + epsilon)
+            // Plotly's ternary plots are strictly non-negative.
+            if (a_ternary < -0.01 || b_ternary < -0.01 || c_ternary < -0.01) {
+                return null;
+            }
+            
+            // Normalize for perfect sum=1, necessary due to floating point math
+            const sum = a_ternary + b_ternary + c_ternary;
+            if (Math.abs(sum - 1) > 1e-4) {
+                // If the sum is significantly off 1, the point is outside the triangle's plane 
+                // (e.g., in the large margins outside the plot area).
+                return null;
+            }
+
+            return { 
+                a: Math.max(0, a_ternary / sum), // Clamp to 0 and re-normalize
+                b: Math.max(0, b_ternary / sum),
+                c: Math.max(0, c_ternary / sum)
+            };
+        }
+        
         // 🔹 Email Magic Link Login
         async function signIn() {
             const email = prompt("Enter your email to receive a login link:");
@@ -142,7 +196,7 @@
             }
         });
 
-        // 🔹 Function to create a ternary plot (Includes the new definitive click fix)
+        // 🔹 Function to create a ternary plot
         function makePlot(divId, resultId, label) {
             
             const responseType = label.toLowerCase();
@@ -152,6 +206,7 @@
             var selectionMarker = {
                 type: 'scatterternary',
                 mode: 'markers',
+                name: 'Your Selection', // Added descriptive name
                 // Use the initialized default response values
                 a: [initialResponse.a], 
                 b: [initialResponse.b], 
@@ -186,7 +241,8 @@
                     text: `${label} Values`,
                     font: { size: 20 }
                 },
-                autosize: true
+                autosize: true,
+                showlegend: false // Hides the legend as it's redundant for this plot type
             };
 
             // 🚨 FIX: Use .then() to ensure the plot is fully initialized before attaching the listener
@@ -196,7 +252,7 @@
                 document.getElementById(resultId).innerHTML =
                     `<span class="font-semibold text-gray-800">Selected → </span> Corporate: ${initialResponse.a.toFixed(3)}, Human: ${initialResponse.b.toFixed(3)}, Environmental: ${initialResponse.c.toFixed(3)}`;
 
-                // 🚨 DEFINITIVE FIX: Use low-level mousedown listener for guaranteed coordinate detection
+                // 🚨 DEFINITIVE FIX: Use low-level mousedown listener AND custom coordinate converter
                 plotDiv.addEventListener('mousedown', function(e) {
                     
                     // Prevent default action (like dragging/selection) which might cause cursor flicker
@@ -210,27 +266,15 @@
                     var x = e.clientX - rect.left;
                     var y = e.clientY - rect.top;
 
-                    // Use Plotly's internal function to convert pixel coordinates to ternary (A, B, C) coordinates
-                    var ternaryCoords = Plotly.Fx.mouseEventToTernary(x, y, gd);
+                    // 🚨 NEW FIX: Use the custom coordinate function
+                    var ternaryCoords = pixelToTernary(x, y, gd);
                     
                     // 1. Check if coordinates are valid
-                    if (ternaryCoords && ternaryCoords.a !== undefined) {
+                    if (ternaryCoords) {
                         
                         let a = ternaryCoords.a;
                         let b = ternaryCoords.b;
                         let c = ternaryCoords.c;
-                        
-                        // 2. Boundary check: Ensure coordinates are reasonably close to non-negative
-                        if (a < -0.001 || b < -0.001 || c < -0.001) {
-                            // Click was outside the triangle boundaries (e.g., in the margins)
-                            return; 
-                        }
-
-                        // 3. Normalize to ensure A + B + C = 1 (critical for ternary plots)
-                        let sum = a + b + c;
-                        a = a / sum;
-                        b = b / sum;
-                        c = c / sum;
                         
                         responses[responseType] = { a, b, c };
 
@@ -242,8 +286,8 @@
                             `<span class="font-semibold text-gray-800">Selected → </span> Corporate: ${a.toFixed(3)}, Human: ${b.toFixed(3)}, Environmental: ${c.toFixed(3)}`;
 
                     } else {
-                        // This indicates a failure in coordinate calculation.
-                        console.warn("Click registered, but failed to calculate valid ternary coordinates.");
+                        // This indicates a click outside the valid triangle area.
+                        console.warn("Click registered, but point is outside the triangle boundaries.");
                     }
                 });
             });
