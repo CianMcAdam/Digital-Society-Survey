@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Ternary Plot Survey with Supabase Login</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js"></script>
+</head>
+<body>
+  <h1>Ternary Plot Survey</h1>
+  <p>
+    Please indicate the relative importance of
+    <b>Corporate Rights</b>, <b>Human Rights</b>, and <b>Environmental Rights</b>.
+    You must log in before submitting.
+  </p>
+
+  <!-- Login -->
+  <button onclick="signIn()">Login with Email</button>
+  <p id="auth-status">Not logged in</p>
+
+  <!-- Present Day Plot -->
+  <h2>Present Day Values</h2>
+  <div id="plot-present" style="width:600px;height:600px;"></div>
+  <button onclick="submitResponse('present')">Submit Present Response</button>
+  <p id="result-present"></p>
+
+  <!-- Future Plot -->
+  <h2>Values in 2075</h2>
+  <div id="plot-future" style="width:600px;height:600px;"></div>
+  <button onclick="submitResponse('future')">Submit Future Response</button>
+  <p id="result-future"></p>
+
+  <script>
+    // 🔹 Connect to Supabase (replace with your own values)
+    const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
+    const supabase = supabase.createClient("https://ttqxpcstznjxkmznyxis.supabase.co";, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";);
+
+    let user = null;
+    let responses = { present: null, future: null };
+
+    // 🔹 Email Magic Link Login
+    async function signIn() {
+      const email = prompt("Enter your email to receive a login link:");
+      if (!email) return;
+      const { error } = await supabase.auth.signInWithOtp({ email });
+      if (error) {
+        alert("Error: " + error.message);
+      } else {
+        alert("✅ Check your email for a magic login link. After clicking it, you’ll return here and be logged in automatically.");
+      }
+    }
+
+    // 🔹 Update login status automatically after magic link
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (session && session.user) {
+        user = session.user;
+        document.getElementById("auth-status").innerText =
+          "✅ Welcome! You are logged in as: " + user.email;
+      } else {
+        user = null;
+        document.getElementById("auth-status").innerText = "Not logged in";
+      }
+    });
+
+    // 🔹 Function to create a ternary plot
+    function makePlot(divId, resultId, label) {
+      var data = [{
+        type: 'scatterternary',
+        mode: 'markers',
+        a: [],
+        b: [],
+        c: [],
+        marker: { size: 14, color: 'blue' }
+      }];
+
+      var layout = {
+        ternary: {
+          aaxis: { title: "Corporate Rights", min: 0.01 },
+          baxis: { title: "Human Rights", min: 0.01 },
+          caxis: { title: "Environmental Rights", min: 0.01 }
+        },
+        title: label
+      };
+
+      Plotly.newPlot(divId, data, layout);
+
+      var plotDiv = document.getElementById(divId);
+      plotDiv.on('plotly_click', function(eventData) {
+        var a = eventData.points[0].a;
+        var b = eventData.points[0].b;
+        var c = eventData.points[0].c;
+
+        responses[label.toLowerCase()] = { a, b, c };
+
+        Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [0]);
+
+        document.getElementById(resultId).innerHTML =
+          `You chose → Corporate: ${a.toFixed(2)}, Human: ${b.toFixed(2)}, Environmental: ${c.toFixed(2)}`;
+      });
+    }
+
+    // 🔹 Submit response to Supabase
+    async function submitResponse(type) {
+      if (!responses[type]) {
+        alert("Please click inside the plot before submitting.");
+        return;
+      }
+      if (!user) {
+        alert("Please log in first.");
+        return;
+      }
+
+      const { error } = await supabase
+        .from("responses")
+        .insert([{
+          user_id: user.id,
+          type: type,
+          a: responses[type].a,
+          b: responses[type].b,
+          c: responses[type].c
+        }]);
+
+      if (error) {
+        alert("Error: " + error.message + " (You may have already submitted for this plot.)");
+      } else {
+        alert("✅ Response submitted!");
+      }
+    }
+
+    // 🔹 Build the two plots
+    makePlot("plot-present", "result-present", "Present");
+    makePlot("plot-future", "result-future", "Future");
+  </script>
+</body>
+</html>
