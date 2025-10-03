@@ -95,10 +95,11 @@
             const email = prompt("Enter your email to receive a login link:");
             if (!email) return;
 
-            // Use window.location.origin to ensure the user returns to the correct page
+            // FIX: Using window.location.href ensures the user returns to the exact application instance URL 
+            // after clicking the magic link, which resolves connection issues in sandboxed environments.
             const { error } = await supabase.auth.signInWithOtp({
                 email,
-                options: { emailRedirectTo: window.location.origin }
+                options: { emailRedirectTo: window.location.href }
             });
 
             if (error) {
