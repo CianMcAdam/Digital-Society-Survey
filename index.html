@@ -95,8 +95,7 @@
             const email = prompt("Enter your email to receive a login link:");
             if (!email) return;
 
-            // REVERTED: Using window.location.origin, which is the standard practice. 
-            // The fix is now in the Supabase Redirect Settings (Step 2).
+            // Using window.location.origin, which is the standard practice. Requires correct Supabase redirect settings.
             const { error } = await supabase.auth.signInWithOtp({
                 email,
                 options: { emailRedirectTo: window.location.origin }
@@ -124,19 +123,36 @@
 
         // 🔹 Function to create a ternary plot (FIXED for reliable click coordinates)
         function makePlot(divId, resultId, label) {
-            // CRITICAL FIX: Initialize with one centered dummy point (1/3, 1/3, 1/3).
-            var data = [{
+            
+            // Trace 0: The user's selection marker (visible)
+            var selectionMarker = {
                 type: 'scatterternary',
                 mode: 'markers',
-                a: [1/3], // Corporate Rights
+                a: [1/3], // Corporate Rights (initial position)
                 b: [1/3], // Human Rights
                 c: [1/3], // Environmental Rights
                 marker: { size: 14, color: '#3b82f6', opacity: 0.8, line: { width: 1, color: 'white' } }
-            }];
+            };
+
+            // Trace 1: INVISIBLE BACKGROUND TRACE (FIX)
+            // This trace covers the entire triangle, ensuring Plotly calculates click coordinates anywhere inside.
+            var backgroundTrace = {
+                type: 'scatterternary',
+                mode: 'lines',
+                a: [1, 0, 0, 1], // Corners (A=1), (B=1), (C=1), back to (A=1)
+                b: [0, 1, 0, 0],
+                c: [0, 0, 1, 0],
+                fill: 'toself',
+                fillcolor: 'rgba(0, 0, 0, 0)', // Fully transparent
+                line: { color: 'transparent' }, // No visible line
+                hoverinfo: 'none' // Do not show hover text
+            };
+
+            var data = [selectionMarker, backgroundTrace];
 
             var layout = {
                 ternary: {
-                    sum: 1, // Ensure the sum of a, b, c is 1 (or 100%)
+                    sum: 1, 
                     aaxis: { title: "Corporate Rights (A)", min: 0.00, titlefont: { color: '#3b82f6', size: 16 } },
                     baxis: { title: "Human Rights (B)", min: 0.00, titlefont: { color: '#10b981', size: 16 } },
                     caxis: { title: "Environmental Rights (C)", min: 0.00, titlefont: { color: '#ef4444', size: 16 } }
@@ -145,7 +161,6 @@
                     text: `${label} Values`,
                     font: { size: 20 }
                 },
-                // Removed fixed height to rely on CSS and responsive resizing
                 autosize: true
             };
 
@@ -161,14 +176,14 @@
                     return;
                 }
 
-                // Get the coordinates from the clicked location
+                // Get the coordinates from the clicked location (Plotly calculates this for the surface)
                 var a = eventData.points[0].a;
                 var b = eventData.points[0].b;
                 var c = eventData.points[0].c;
 
                 responses[label.toLowerCase()] = { a, b, c };
 
-                // Restyle the plot to move the single marker to the clicked position
+                // Restyle the plot to move the single marker (Trace 0) to the clicked position
                 Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [0]);
 
                 // Update display
@@ -177,7 +192,7 @@
             });
         }
 
-        // 🔹 Submit response to Supabase (IMPROVED: Login check moved up)
+        // 🔹 Submit response to Supabase
         async function submitResponse(type) {
             // 1. Check for user login status first
             if (!user) {
@@ -205,7 +220,6 @@
 
             if (error) {
                 console.error("Submission Error:", error);
-                // Supabase error codes for existing record might be 23505 (unique constraint violation)
                 if (error.code === '23505') {
                     alert(`⚠️ Error: It looks like you have already submitted your '${type}' response.`);
                 } else {
