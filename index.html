@@ -1,346 +1,168 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ternary Plot Survey with Supabase Auth</title>
-    <!-- Load Plotly for Ternary Plots (UPDATED to specific version 2.32.0) -->
-    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
-    <!-- Load Supabase for Authentication and Database -->
-    <script src="https://unpkg.com/@supabase/supabase-js"></script>
-    <!-- Load Tailwind CSS for styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* Custom styles to ensure plots are responsive and centered */
-        .plot-container {
-            width: 100%;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        /* Style for the ternary plot axis labels */
-        .ternary-plot .g-gtitle {
-            font-weight: 600;
-        }
-        /* FIX: Force the hand pointer cursor on all plot components */
-        /* This rule is now more aggressive to ensure the cursor stays */
-        .js-plotly-plot,
-        .js-plotly-plot * { 
-            cursor: pointer !important;
-            user-select: none; /* Prevent text selection confusion on click */
-        }
-        /* Ensure the click target (the background fill) is on top of other plot elements */
-        .ternarylayer .scatterlayer.fill {
-            pointer-events: all;
-        }
-    </style>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    },
-                }
-            }
-        }
-    </script>
+  <meta charset="UTF-8">
+  <title>Ternary Plot Survey with Supabase Login</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js"></script>
 </head>
-<body class="bg-gray-50 min-h-screen p-4 sm:p-8 font-sans">
-    <div class="max-w-4xl mx-auto bg-white p-6 sm:p-10 rounded-xl shadow-2xl">
-        <h1 class="text-4xl font-extrabold text-gray-900 mb-2">Ternary Plot Survey</h1>
-        <p class="text-lg text-gray-600 mb-6">
-            Please indicate the relative importance of
-            <b class="text-blue-600">Corporate Rights (A)</b>,
-            <b class="text-green-600">Human Rights (B)</b>, and
-            <b class="text-red-600">Environmental Rights (C)</b>.
-            You must log in before submitting.
-        </p>
+<body>
+  <h1>Ternary Plot Survey</h1>
+  <p>
+    Please indicate the relative importance of
+    <b>Corporate Rights</b>, <b>Human Rights</b>, and <b>Environmental Rights</b>.
+    You must log in before submitting.
+  </p>
 
-        <!-- Login Section -->
-        <div class="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200 flex flex-col sm:flex-row items-start sm:items-center justify-between">
-            <p id="auth-status" class="text-blue-800 font-medium mr-4">Not logged in</p>
-            <button onclick="signIn()" class="mt-2 sm:mt-0 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition duration-150">
-                Login with Magic Link
-            </button>
-        </div>
+  <!-- Login -->
+  <button onclick="signIn()">Login with Email</button>
+  <p id="auth-status">Not logged in</p>
 
-        <!-- Present Day Plot -->
-        <div class="mb-10 border-t pt-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">1. Present Day Values</h2>
-            <div id="plot-present" class="plot-container h-[400px] sm:h-[600px]"></div>
-            <div class="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4 mt-6">
-                <p id="result-present" class="text-gray-700 italic text-center sm:text-left">Click inside the plot to select your values.</p>
-                <button onclick="submitResponse('present')" class="px-6 py-3 bg-green-500 text-white font-bold rounded-lg shadow-lg hover:bg-green-600 transition duration-150 transform hover:scale-105">
-                    Submit Present Response
-                </button>
-            </div>
-        </div>
+  <!-- Present Day Plot -->
+  <h2>Present Day Values</h2>
+  <div id="plot-present" style="width:600px;height:600px;"></div>
+  <button onclick="submitResponse('present')">Submit Present Response</button>
+  <p id="result-present"></p>
 
-        <!-- Future Plot -->
-        <div class="mb-10 border-t pt-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">2. Values in 2075</h2>
-            <div id="plot-future" class="plot-container h-[400px] sm:h-[600px]"></div>
-            <div class="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4 mt-6">
-                <p id="result-future" class="text-gray-700 italic text-center sm:text-left">Click inside the plot to select your values.</p>
-                <button onclick="submitResponse('future')" class="px-6 py-3 bg-green-500 text-white font-bold rounded-lg shadow-lg hover:bg-green-600 transition duration-150 transform hover:scale-105">
-                    Submit Future Response
-                </button>
-            </div>
-        </div>
+  <!-- Future Plot -->
+  <h2>Values in 2075</h2>
+  <div id="plot-future" style="width:600px;height:600px;"></div>
+  <button onclick="submitResponse('future')">Submit Future Response</button>
+  <p id="result-future"></p>
 
-    </div>
+  <script>
+    // 🔹 Connect to Supabase (your details)
+    const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
+    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-    <script>
-        // 🔹 Supabase Configuration (Explicitly including your provided key and URL)
-        const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co"; 
-        const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4"; 
-        
-        // 🔹 Connect to Supabase
-        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    let user = null;
+    let responses = { present: null, future: null };
 
-        let user = null;
-        
-        // Define initial responses at the center (1/3, 1/3, 1/3) to satisfy the NOT NULL constraint 
-        const defaultA = 1/3;
-        const defaultB = 1/3;
-        const defaultC = 1/3;
+    // 🔹 Email Magic Link Login
+    async function signIn() {
+      const email = prompt("Enter your email to receive a login link:");
+      if (!email) return;
+      const { error } = await supabase.auth.signInWithOtp({ email });
+      if (error) {
+        alert("Error: " + error.message);
+      } else {
+        alert("✅ Check your email for a magic login link. After clicking it, you’ll return here and be logged in automatically.");
+      }
+    }
 
-        let responses = { 
-            present: { a: defaultA, b: defaultB, c: defaultC }, 
-            future: { a: defaultA, b: defaultB, c: defaultC } 
-        };
+    // 🔹 Update login status automatically after magic link
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (session && session.user) {
+        user = session.user;
+        document.getElementById("auth-status").innerText =
+          "✅ Welcome! You are logged in as: " + user.email;
+      } else {
+        user = null;
+        document.getElementById("auth-status").innerText = "Not logged in";
+      }
+    });
 
-        // 🔹 Helper functions for custom pixel-to-ternary conversion (replaces Plotly.Fx.mouseEventToTernary)
-        
-        // Function to calculate the signed area (or half the cross product) for barycentric coordinates
-        function sign(p1, p2, p3) {
-            // (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y)
-            return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+    // 🔹 Function to create a ternary plot (high precision clicks)
+    function makePlot(divId, resultId, label) {
+      // User's chosen dot
+      var userDot = {
+        type: 'scatterternary',
+        mode: 'markers',
+        a: [],
+        b: [],
+        c: [],
+        marker: { size: 14, color: 'blue' },
+        name: "Your Choice"
+      };
+
+      // Transparent clickable grid (high resolution)
+      let gridPoints = [];
+      let step = 0.02; // 🔹 finer precision (2% steps)
+      for (let a = 0; a <= 1; a += step) {
+        for (let b = 0; b <= 1 - a; b += step) {
+          let c = 1 - a - b;
+          if (c >= 0) {
+            gridPoints.push({a, b, c});
+          }
         }
+      }
 
-        // Function to convert pixel coordinates (x, y) to ternary coordinates (a, b, c)
-        function pixelToTernary(x, y, gd) {
-            const layout = gd._fullLayout.ternary;
-            
-            // Get the pixel coordinates of the three vertices from Plotly's layout anchors
-            const A = { x: layout.ap[0], y: layout.ap[1] }; // Corporate Rights (A) (Right Vertex)
-            const B = { x: layout.bp[0], y: layout.bp[1] }; // Human Rights (B) (Top Vertex)
-            const C = { x: layout.cp[0], y: layout.cp[1] }; // Environmental Rights (C) (Bottom-Left Vertex)
-            const P = { x: x, y: y }; // Clicked Point
+      var clickableLayer = {
+        type: 'scatterternary',
+        mode: 'markers',
+        a: gridPoints.map(p => p.a),
+        b: gridPoints.map(p => p.b),
+        c: gridPoints.map(p => p.c),
+        marker: { size: 15, color: 'rgba(0,0,0,0)' }, // invisible clickable points
+        name: "Clickable Area"
+      };
 
-            // Calculate the signed area of the total triangle ABC
-            const AreaABC_Signed = sign(A, B, C);
-            
-            if (Math.abs(AreaABC_Signed) < 1e-6) return null; // Area is zero (degenerate triangle)
+      var data = [clickableLayer, userDot];
 
-            // Calculate the signed areas of the sub-triangles formed by point P
-            const AreaPBC_Signed = sign(P, B, C); // Area opposite vertex A
-            const AreaPAC_Signed = sign(P, A, C); // Area opposite vertex B
-            const AreaPAB_Signed = sign(P, A, B); // Area opposite vertex C
+      var layout = {
+        ternary: {
+          aaxis: { title: "Corporate Rights", min: 0.01 },
+          baxis: { title: "Human Rights", min: 0.01 },
+          caxis: { title: "Environmental Rights", min: 0.01 }
+        },
+        title: label,
+        clickmode: 'event+select'
+      };
 
-            // Barycentric coordinates (which are the ternary coordinates)
-            let a_ternary = AreaPBC_Signed / AreaABC_Signed;
-            let b_ternary = AreaPAC_Signed / AreaABC_Signed;
-            let c_ternary = AreaPAB_Signed / AreaABC_Signed;
-            
-            // --- 🚨 DEFINITIVE FIX START ---
-            // If the sum is extremely far from 1, the point is definitely outside the plot area
-            const sum = a_ternary + b_ternary + c_ternary;
-            if (Math.abs(sum) < 0.1 || Math.abs(sum) > 2) {
-                return null; 
-            }
+      Plotly.newPlot(divId, data, layout);
 
-            // Normalize, then aggressively clamp values to prevent rejection due to float errors
-            let a = a_ternary / sum;
-            let b = b_ternary / sum;
-            let c = c_ternary / sum;
-            
-            a = Math.min(1, Math.max(0, a));
-            b = Math.min(1, Math.max(0, b));
-            c = Math.min(1, Math.max(0, c));
-            
-            // Final normalization to ensure A + B + C = 1 (critical)
-            const finalSum = a + b + c;
-            if (finalSum === 0) return { a: 0, b: 0, c: 0 }; 
+      var plotDiv = document.getElementById(divId);
 
-            return { 
-                a: a / finalSum,
-                b: b / finalSum,
-                c: c / finalSum
-            };
-            // --- 🚨 DEFINITIVE FIX END ---
-        }
-        
-        // 🔹 Email Magic Link Login
-        async function signIn() {
-            const email = prompt("Enter your email to receive a login link:");
-            if (!email) return;
+      // Capture clicks
+      plotDiv.on('plotly_click', function(eventData) {
+        var pt = eventData.points[0];
+        var a = pt.a;
+        var b = pt.b;
+        var c = pt.c;
 
-            // Using window.location.origin for the redirect URL
-            const { error } = await supabase.auth.signInWithOtp({
-                email,
-                options: { emailRedirectTo: window.location.origin }
-            });
+        responses[label.toLowerCase()] = { a, b, c };
 
-            if (error) {
-                console.error("Login error:", error);
-                alert("Login Error: " + error.message);
-            } else {
-                alert("✅ Success! Check your email for a magic login link. After clicking it, you’ll return here and be logged in automatically.");
-            }
-        }
+        // Update marker
+        Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [1]);
 
-        // 🔹 Update login status automatically
-        // 🚨 FIX: Corrected method name from onAuthStateChanged to onAuthStateChange for Supabase V2
-        supabase.auth.onAuthStateChange((event, session) => {
-            if (session && session.user) {
-                user = session.user;
-                document.getElementById("auth-status").innerHTML =
-                    `<span class="text-green-600 font-bold">✅ Logged in!</span> Email: ${user.email} | User ID: ${user.id.substring(0, 8)}...`;
-            } else {
-                user = null;
-                document.getElementById("auth-status").innerText = "Not logged in";
-            }
-        });
+        // Show choice
+        document.getElementById(resultId).innerHTML =
+          `You chose → Corporate: ${a.toFixed(2)}, Human: ${b.toFixed(2)}, Environmental: ${c.toFixed(2)}`;
+      });
+    }
 
-        // 🔹 Function to create a ternary plot
-        function makePlot(divId, resultId, label) {
-            
-            const responseType = label.toLowerCase();
-            const initialResponse = responses[responseType];
+    // 🔹 Submit response to Supabase
+    async function submitResponse(type) {
+      if (!responses[type]) {
+        alert("Please click inside the plot before submitting.");
+        return;
+      }
+      if (!user) {
+        alert("Please log in first.");
+        return;
+      }
 
-            // Trace 0: The user's selection marker (visible)
-            var selectionMarker = {
-                type: 'scatterternary',
-                mode: 'markers',
-                name: 'Your Selection', // Added descriptive name
-                // Use the initialized default response values
-                a: [initialResponse.a], 
-                b: [initialResponse.b], 
-                c: [initialResponse.c], 
-                marker: { size: 14, color: '#3b82f6', opacity: 0.8, line: { width: 1, color: 'white' } },
-                hoverinfo: 'none' // Hide hover for the marker itself
-            };
+      const { error } = await supabase
+        .from("responses")
+        .insert([{
+          user_id: user.id,
+          type: type,
+          a: responses[type].a,
+          b: responses[type].b,
+          c: responses[type].c
+        }]);
 
-            // Trace 1: BACKGROUND FILL TRACE (The clickable area, now with stronger settings)
-            var backgroundTrace = {
-                type: 'scatterternary',
-                a: [1, 0, 0, 1], // Corners (A=1), (B=1), (C=1), back to (A=1)
-                b: [0, 1, 0, 0],
-                c: [0, 0, 1, 0],
-                fill: 'toself',
-                // Faint fill to ensure it is rendered and clickable
-                fillcolor: 'rgba(200, 200, 200, 0.05)', 
-                line: { color: 'transparent' }, 
-                hoverinfo: 'none'
-            };
+      if (error) {
+        alert("Error: " + error.message + " (You may have already submitted for this plot.)");
+      } else {
+        alert("✅ Response submitted!");
+      }
+    }
 
-            var data = [selectionMarker, backgroundTrace];
-
-            var layout = {
-                ternary: {
-                    sum: 1, 
-                    aaxis: { title: "Corporate Rights (A)", min: 0.00, titlefont: { color: '#3b82f6', size: 16 } },
-                    baxis: { title: "Human Rights (B)", min: 0.00, titlefont: { color: '#10b981', size: 16 } },
-                    caxis: { title: "Environmental Rights (C)", min: 0.00, titlefont: { color: '#ef4444', size: 16 } }
-                },
-                title: {
-                    text: `${label} Values`,
-                    font: { size: 20 }
-                },
-                autosize: true,
-                showlegend: false // Hides the legend as it's redundant for this plot type
-            };
-
-            // 🚨 FIX: Use .then() to ensure the plot is fully initialized before attaching the listener
-            Plotly.newPlot(divId, data, layout, { responsive: true, displayModeBar: false }).then(function(plotDiv) {
-                
-                // Update initial display with default values
-                document.getElementById(resultId).innerHTML =
-                    `<span class="font-semibold text-gray-800">Selected → </span> Corporate: ${initialResponse.a.toFixed(3)}, Human: ${initialResponse.b.toFixed(3)}, Environmental: ${initialResponse.c.toFixed(3)}`;
-
-                // 🚨 DEFINITIVE FIX: Use low-level mousedown listener AND custom coordinate converter
-                plotDiv.addEventListener('mousedown', function(e) {
-                    
-                    // Prevent default action (like dragging/selection) which might cause cursor flicker
-                    e.preventDefault(); 
-                    e.stopPropagation();
-
-                    var gd = plotDiv;
-                    var rect = gd.getBoundingClientRect();
-                    
-                    // Get mouse coordinates relative to the plot's top-left corner
-                    var x = e.clientX - rect.left;
-                    var y = e.clientY - rect.top;
-
-                    // 🚨 NEW FIX: Use the custom coordinate function
-                    var ternaryCoords = pixelToTernary(x, y, gd);
-                    
-                    // 1. Check if coordinates are valid
-                    if (ternaryCoords) {
-                        
-                        let a = ternaryCoords.a;
-                        let b = ternaryCoords.b;
-                        let c = ternaryCoords.c;
-                        
-                        responses[responseType] = { a, b, c };
-
-                        // Restyle the plot to move the single selection marker (Trace 0) to the clicked position
-                        Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [0]);
-
-                        // Update display
-                        document.getElementById(resultId).innerHTML =
-                            `<span class="font-semibold text-gray-800">Selected → </span> Corporate: ${a.toFixed(3)}, Human: ${b.toFixed(3)}, Environmental: ${c.toFixed(3)}`;
-
-                    } else {
-                        // This indicates a click outside the valid triangle area.
-                        console.warn("Click registered, but point is outside the triangle boundaries or margins.");
-                    }
-                });
-            });
-        }
-
-        // 🔹 Submit response to Supabase
-        async function submitResponse(type) {
-            // 1. Check for user login status first
-            if (!user) {
-                alert("🛑 Please log in first using the magic link button.");
-                return;
-            }
-
-            const payload = responses[type];
-
-            // 🚨 Defensive Check: Ensure the values are finite numbers before insertion
-            if (!isFinite(payload.a) || !isFinite(payload.b) || !isFinite(payload.c)) {
-                 alert("🛑 Error: Cannot submit. Please click inside the plot to select valid values before submitting.");
-                 return;
-            }
-
-            const { error } = await supabase
-                .from("responses")
-                .insert([{
-                    user_id: user.id,
-                    type: type,
-                    a: payload.a,
-                    b: payload.b,
-                    c: payload.c
-                }]);
-
-            if (error) {
-                console.error("Submission Error:", error);
-                if (error.code === '23505') {
-                    alert(`⚠️ Error: It looks like you have already submitted your '${type}' response.`);
-                } else {
-                    alert(`Submission Error: ${error.message}`);
-                }
-            } else {
-                alert(`✅ Your ${type} response was successfully submitted!`);
-            }
-        }
-
-        // 🔹 Build the two plots: Executing immediately after functions are defined.
-        makePlot("plot-present", "result-present", "Present");
-        makePlot("plot-future", "result-future", "Future");
-    </script>
+    // 🔹 Build the two plots
+    makePlot("plot-present", "result-present", "Present");
+    makePlot("plot-future", "result-future", "Future");
+  </script>
 </body>
 </html>
