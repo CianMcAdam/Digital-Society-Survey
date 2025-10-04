@@ -20,12 +20,14 @@
             border: 1px solid #ccc;
             background-color: #f0f0f0;
         }
+        /* Style for the Export button */
         #export-button {
             background-color: #4CAF50; /* Green */
             color: white;
             border: none;
             font-weight: bold;
             margin-bottom: 20px;
+            display: none; /* ⬅️ HIDE BY DEFAULT */
         }
     </style>
 </head>
@@ -62,6 +64,12 @@
     const defaultB = 1/3;
     const defaultC = 1 - defaultA - defaultB; // Ensure sum is 1
     
+    // -------------------------
+    // 🔑 ADMIN CONFIGURATION
+    // -------------------------
+    // ⚠️ IMPORTANT: Replace 'your.admin.email@example.com' with the email you use to log in.
+    const ADMIN_EMAIL = 'your.admin.email@example.com'; 
+
     // -------------------------
     // 🔹 PLOTLY FUNCTIONS
     // -------------------------
@@ -163,13 +171,11 @@
       });
     }
 
-    // --- FIX START: Wrap initialization logic in window.onload ---
     window.onload = function() {
         // Build both plots immediately
         makePlot("plot-present", "result-present", "Present");
         makePlot("plot-future", "result-future", "Future");
     };
-    // --- FIX END ---
 
     // -------------------------
     // 🔹 SUPABASE SETUP
@@ -183,7 +189,6 @@
     let user = null;
     
     // NEW HELPER: Function to get the current URL without existing query/hash parameters
-    // This is crucial for resolving the redirect 404 error in Canvas environments.
     const getCurrentCleanUrl = () => {
         const url = window.location.href;
         // Split by '?' or '#' and return the base URL (path included)
@@ -210,15 +215,38 @@
       }
     }
 
+    // Helper to toggle admin elements
+    function toggleAdminElements(isAdmin) {
+        const exportButton = document.getElementById('export-button');
+        if (exportButton) {
+            exportButton.style.display = isAdmin ? 'block' : 'none';
+        }
+    }
+
     // Auth state change
     supabase.auth.onAuthStateChange((event, session) => {
       if (session && session.user) {
         user = session.user;
-        document.getElementById("auth-status").innerText =
-          "✅ Welcome! You are logged in as: " + user.email;
+        
+        // Determine if the logged-in user is the admin
+        const isAdmin = user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+
+        // Update auth status
+        let statusText = `✅ Welcome! You are logged in as: ${user.email}`;
+        if (isAdmin) {
+            statusText += " (Admin)";
+        }
+
+        document.getElementById("auth-status").innerText = statusText;
+        
+        // Show/Hide admin elements based on identity
+        toggleAdminElements(isAdmin);
+        
       } else {
         user = null;
         document.getElementById("auth-status").innerText = "Not logged in";
+        // Hide admin elements when logged out
+        toggleAdminElements(false);
       }
     });
 
@@ -275,6 +303,12 @@
     // 🔹 EXPORT FUNCTION
     // -------------------------
     async function exportToExcel() {
+        // Prevent unauthorized export attempts even if button visibility is somehow bypassed
+        if (!user || user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+            alert("🛑 Access Denied: Only the administrator can export data.");
+            return;
+        }
+        
         // 1. Fetch all data from the 'responses' table
         const { data, error } = await supabase
             .from('responses')
