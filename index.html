@@ -103,7 +103,7 @@
     <div class="plot-group">
         <!-- Present Day Plot -->
         <div class="plot-section">
-            <h2>Present Day Values</h2>
+            <h2>Present Day Values </h2>
             <div id="plot-present" style="width:100%; max-width:600px; height:600px;"></div>
             <p id="result-present" style="font-weight:bold; margin-top: 15px; color: #007bff;"></p>
             <button onclick="submitResponse('present')">Submit Present Response</button>
@@ -378,12 +378,18 @@
     // 🔹 ADMIN EXPORT FUNCTION
     // ------------------------------------
     async function exportToExcel() {
+        console.log("Attempting admin export...");
+        
         // Explicit client-side check for admin
         if (!user || user.email.toLowerCase().trim() !== ADMIN_EMAIL.toLowerCase().trim()) {
+            console.error("ADMIN EXPORT FAILED: User is not the administrator.");
             alert("🛑 Access Denied: Only the administrator can export data.");
             return;
         }
         
+        // Log the use of the service key
+        console.log("Using SUPABASE_SERVICE_KEY for privileged access.");
+
         // Create a temporary client using the Service Role Key to bypass Row Level Security (RLS)
         const serviceSupabase = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY, {
             auth: {
@@ -399,16 +405,23 @@
             .select('user_id, type, a, b, c, created_at'); 
 
         if (error) {
-            console.error("Export Error (Check Service Key or database permissions):", error); 
+            console.error("❌ Fatal Error fetching data for export (Supabase API Error):", error); 
+            // Check if the error looks like an authentication/key error
+            if (error.message.includes('JWT') || error.message.includes('permission denied')) {
+                 console.error("HINT: The error suggests a problem with the Supabase Service Role Key or RLS configuration. Double-check your key in SUPABASE_SERVICE_KEY.");
+            }
             alert("Fatal Error fetching data. See console for debugging.");
             return;
         }
 
         if (!data || data.length === 0) {
+            console.log("Export successful, but no data records found.");
             alert("No data available to export.");
             return;
         }
 
+        console.log(`✅ Successfully fetched ${data.length} records.`);
+        
         // Prepare the CSV content
         const headers = ["User ID", "Type", "Corporate (A)", "Human (B)", "Environmental (C)", "Timestamp"];
         const csvRows = data.map(row => [
