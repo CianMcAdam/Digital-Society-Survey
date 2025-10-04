@@ -2,11 +2,56 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ternary Plot Survey with Supabase Login</title>
-  <!-- Load Plotly first -->
-  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-  <!-- Then load Supabase -->
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
   <script src="https://unpkg.com/@supabase/supabase-js"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      margin: 20px;
+      background-color: #f7f7f7;
+      color: #333;
+      line-height: 1.6;
+    }
+    h1, h2 {
+      color: #1a4d80;
+      border-bottom: 2px solid #ccc;
+      padding-bottom: 5px;
+      margin-top: 30px;
+    }
+    button {
+      padding: 10px 20px;
+      margin-top: 15px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: none;
+      font-weight: bold;
+      transition: all 0.2s ease-in-out;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    button:hover { opacity: 0.9; transform: translateY(-1px); }
+    .primary-button { background-color: #007bff; color: white; }
+    #export-button { background-color: #28a745; color: white; margin-bottom: 20px; display: none; }
+    #auth-status {
+      font-weight: 600; margin-top: 10px; padding: 5px;
+      border-radius: 4px; background-color: transparent;
+    }
+    .plot-container {
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin-top: 20px;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    @media (max-width: 768px) {
+      #plot-present, #plot-future {
+        width: 100% !important;
+        height: 450px !important;
+      }
+    }
+  </style>
 </head>
 <body>
   <h1>Ternary Plot Survey</h1>
@@ -17,248 +62,190 @@
   </p>
 
   <!-- Login -->
-  <button onclick="signIn()">Login with Email</button>
+  <button class="primary-button" onclick="signIn()">Login with Email</button>
   <p id="auth-status">Not logged in</p>
 
-  <!-- Present Day Plot -->
-  <h2>Present Day Values</h2>
-  <div id="plot-present" style="width:600px;height:600px;"></div>
-  <button id="submit-present" onclick="submitResponse('present')">Submit Present Response</button>
-  <p id="result-present"></p>
+  <!-- Admin Export Button -->
+  <button id="export-button" onclick="exportToExcel()">Export All Responses to CSV (Excel)</button>
 
-  <!-- Future Plot -->
-  <h2>Values in 2075</h2>
-  <div id="plot-future" style="width:600px;height:600px;"></div>
-  <button id="submit-future" onclick="submitResponse('future')">Submit Future Response</button>
-  <p id="result-future"></p>
+  <div class="plot-container">
+    <h2>Present Day Values</h2>
+    <div id="plot-present" style="width:600px;height:600px;"></div>
+    <button id="submit-present" class="primary-button" onclick="submitResponse('present')">Submit Present Response</button>
+    <p id="result-present"></p>
+  </div>
 
-  <!-- Admin-only CSV Export -->
-  <h2>Admin Controls</h2>
-  <button id="export-btn" onclick="exportCSV()" style="display:none;">
-    Export All Responses to CSV (Excel)
-  </button>
-  <p id="export-status"></p>
+  <div class="plot-container">
+    <h2>Values in 2075</h2>
+    <div id="plot-future" style="width:600px;height:600px;"></div>
+    <button id="submit-future" class="primary-button" onclick="submitResponse('future')">Submit Future Response</button>
+    <p id="result-future"></p>
+  </div>
 
   <script>
     // -------------------------
-    // 🔹 PLOTLY FUNCTIONS
+    // 🔑 CONFIGURATION
     // -------------------------
-    let responses = { present: null, future: null };
+    const ADMIN_EMAIL = 'cian.mcadam@ucdconnect.ie';
+    const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
+    const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTQ0MTIxOCwiZXhwIjoyMDc1MDE3MjE4fQ.WT_z-BJRTfu9EqO1Fig515aYF9FUOQGOQQgJ86AjM3Q";
+    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
+    let user = null;
+    let responses = { present: { a: 1/3, b: 1/3, c: 1/3 }, future: { a: 1/3, b: 1/3, c: 1/3 } };
+
+    // -------------------------
+    // 🧭 PLOTLY SETUP
+    // -------------------------
     function makePlot(divId, resultId, label) {
-      var userDot = {
+      const defaultValues = responses[label.toLowerCase()];
+      const userDot = {
         type: 'scatterternary',
         mode: 'markers',
-        a: [0.33],
-        b: [0.33],
-        c: [0.34],
+        a: [defaultValues.a],
+        b: [defaultValues.b],
+        c: [defaultValues.c],
         marker: { size: 14, color: 'blue' },
         name: "Your Choice"
       };
 
-      responses[label.toLowerCase()] = { a: 0.33, b: 0.33, c: 0.34 };
-
       let gridPoints = [];
-      let step = 0.02;
-      for (let a = 0; a <= 1; a += step) {
-        for (let b = 0; b <= 1 - a; b += step) {
+      for (let a = 0; a <= 1; a += 0.02) {
+        for (let b = 0; b <= 1 - a; b += 0.02) {
           let c = 1 - a - b;
           if (c >= 0) gridPoints.push({a, b, c});
         }
       }
 
-      var clickableLayer = {
+      const clickableLayer = {
         type: 'scatterternary',
         mode: 'markers',
         a: gridPoints.map(p => p.a),
         b: gridPoints.map(p => p.b),
         c: gridPoints.map(p => p.c),
         marker: { size: 15, color: 'rgba(0,0,0,0)' },
-        text: gridPoints.map(p =>
-          `Corporate: ${p.a.toFixed(2)}, Human: ${p.b.toFixed(2)}, Environmental: ${p.c.toFixed(2)}`
-        ),
+        text: gridPoints.map(p => `Corporate: ${p.a.toFixed(2)}, Human: ${p.b.toFixed(2)}, Environmental: ${p.c.toFixed(2)}`),
         hoverinfo: "text",
         name: "Clickable Area"
       };
 
-      var data = [clickableLayer, userDot];
-
-      var layout = {
+      const layout = {
         ternary: {
-          aaxis: { title: "Corporate Rights", min: 0.01 },
-          baxis: { title: "Human Rights", min: 0.01 },
-          caxis: { title: "Environmental Rights", min: 0.01 }
+          aaxis: { title: "Corporate Rights" },
+          baxis: { title: "Human Rights" },
+          caxis: { title: "Environmental Rights" }
         },
         title: label,
         clickmode: 'event+select'
       };
 
-      Plotly.newPlot(divId, data, layout);
+      Plotly.newPlot(divId, [clickableLayer, userDot], layout);
 
-      var plotDiv = document.getElementById(divId);
-
+      const plotDiv = document.getElementById(divId);
       document.getElementById(resultId).innerHTML =
-        `You chose → Corporate: 0.33, Human: 0.33, Environmental: 0.34`;
+        `You chose → Corporate: ${defaultValues.a.toFixed(2)}, Human: ${defaultValues.b.toFixed(2)}, Environmental: ${defaultValues.c.toFixed(2)}`;
 
       plotDiv.on('plotly_click', function(eventData) {
-        var pt = eventData.points[0];
-        var a = pt.a;
-        var b = pt.b;
-        var c = pt.c;
-
+        const pt = eventData.points[0];
+        const { a, b, c } = pt;
         responses[label.toLowerCase()] = { a, b, c };
-
         Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [1]);
-
         document.getElementById(resultId).innerHTML =
           `You chose → Corporate: ${a.toFixed(2)}, Human: ${b.toFixed(2)}, Environmental: ${c.toFixed(2)}`;
       });
     }
 
-    makePlot("plot-present", "result-present", "Present");
-    makePlot("plot-future", "result-future", "Future");
+    window.onload = () => {
+      makePlot("plot-present", "result-present", "Present");
+      makePlot("plot-future", "result-future", "Future");
+    };
 
     // -------------------------
-    // 🔹 SUPABASE SETUP
+    // 🔑 LOGIN / AUTH
     // -------------------------
-    const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
-    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
-
-    let user = null;
-
     async function signIn() {
       const email = prompt("Enter your email to receive a login link:");
       if (!email) return;
-      const { error } = await supabase.auth.signInWithOtp({ email });
-      if (error) {
-        alert("Error: " + error.message);
-      } else {
-        alert("✅ Check your email for a magic login link. After clicking it, you’ll return here and be logged in automatically.");
-      }
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: window.location.href.split(/[?#]/)[0] }
+      });
+      if (error) alert("Error: " + error.message);
+      else alert("✅ Check your email for a magic login link!");
     }
 
-    // Auth state change handler
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (session && session.user) {
         user = session.user;
-        document.getElementById("auth-status").innerText =
-          "✅ Welcome! You are logged in as: " + user.email;
-
-        if (user.email === "cian.mcadam@ucdconnect.ie") {
-          document.getElementById("export-btn").style.display = "block";
-        }
-
-        // Check if this user already submitted responses
+        const isAdmin = user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+        document.getElementById("auth-status").innerText = `✅ Logged in as: ${user.email}${isAdmin ? " (Admin)" : ""}`;
+        document.getElementById("auth-status").style.backgroundColor = isAdmin ? "#d4edda" : "#fff3cd";
+        document.getElementById("export-button").style.display = isAdmin ? "block" : "none";
         await checkUserSubmissions();
       } else {
         user = null;
         document.getElementById("auth-status").innerText = "Not logged in";
-        document.getElementById("export-btn").style.display = "none";
+        document.getElementById("auth-status").style.backgroundColor = "transparent";
+        document.getElementById("export-button").style.display = "none";
       }
     });
 
     // -------------------------
-    // 🔹 CHECK PREVIOUS SUBMISSIONS
+    // 🔁 CHECK PREVIOUS SUBMISSIONS
     // -------------------------
     async function checkUserSubmissions() {
-      const { data, error } = await supabase
-        .from("responses")
-        .select("type")
-        .eq("user_id", user.id);
+      if (!user) return;
+      const { data, error } = await supabase.from("responses").select("type, created_at").eq("user_id", user.id);
+      if (error) return console.error(error);
 
-      if (error) {
-        console.error("Error checking submissions:", error.message);
-        return;
-      }
-
-      const submittedTypes = data.map(row => row.type);
-
-      if (submittedTypes.includes("present")) {
-        document.getElementById("submit-present").disabled = true;
-        document.getElementById("result-present").innerText = "✅ You’ve already submitted your Present response.";
-      }
-
-      if (submittedTypes.includes("future")) {
-        document.getElementById("submit-future").disabled = true;
-        document.getElementById("result-future").innerText = "✅ You’ve already submitted your Future response.";
-      }
+      data.forEach(row => {
+        const type = row.type;
+        const submitButton = document.getElementById(`submit-${type}`);
+        const resultText = document.getElementById(`result-${type}`);
+        submitButton.disabled = true;
+        const time = new Date(row.created_at).toLocaleString();
+        resultText.innerHTML = `✅ You already submitted your ${type} response.<br>Submitted on: <b>${time}</b>`;
+      });
     }
 
     // -------------------------
-    // 🔹 SUBMIT RESPONSE FUNCTION
+    // 📤 SUBMIT RESPONSE
     // -------------------------
     async function submitResponse(type) {
-      if (!responses[type]) {
-        alert("Please click inside the plot before submitting.");
-        return;
-      }
-      if (!user) {
-        alert("Please log in first.");
-        return;
-      }
+      if (!user) return alert("Please log in first.");
+      const { data: existing } = await supabase.from("responses").select("id").eq("user_id", user.id).eq("type", type);
+      if (existing && existing.length > 0) return alert("⚠️ You’ve already submitted this plot.");
 
-      // Check for existing submission
-      const { data: existing, error: checkError } = await supabase
-        .from("responses")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("type", type);
-
-      if (checkError) {
-        alert("Error checking existing submissions: " + checkError.message);
-        return;
-      }
-
-      if (existing.length > 0) {
-        alert("⚠️ You’ve already submitted for this plot!");
-        return;
-      }
-
-      // Insert new response
-      const { error } = await supabase
-        .from("responses")
-        .insert([{
-          user_id: user.id,
-          type: type,
-          a: responses[type].a,
-          b: responses[type].b,
-          c: responses[type].c
-        }]);
-
-      if (error) {
-        alert("Error: " + error.message);
-      } else {
+      const { a, b, c } = responses[type];
+      const { error } = await supabase.from("responses").insert([{ user_id: user.id, type, a, b, c }]);
+      if (error) alert("Error: " + error.message);
+      else {
         alert("✅ Response submitted!");
-        await checkUserSubmissions(); // Refresh UI
+        await checkUserSubmissions();
       }
     }
 
     // -------------------------
-    // 🔹 ADMIN EXPORT FEATURE
+    // 📊 EXPORT (ADMIN ONLY)
     // -------------------------
-    async function exportCSV() {
-      const { data, error } = await supabase
-        .from('responses')
-        .select('*');
+    async function exportToExcel() {
+      if (!user || user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return alert("🛑 Admins only.");
+      const serviceClient = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY);
+      const { data, error } = await serviceClient.from("responses").select("*");
+      if (error) return alert("Error exporting: " + error.message);
+      if (!data.length) return alert("No data found.");
 
-      if (error) {
-        alert('Error fetching data: ' + error.message);
-        return;
-      }
-
-      const csv = [
-        ['user_id', 'type', 'a', 'b', 'c', 'created_at'],
-        ...data.map(r => [r.user_id, r.type, r.a, r.b, r.c, r.created_at])
-      ].map(e => e.join(",")).join("\n");
-
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
+      const headers = ["user_id", "type", "a", "b", "c", "created_at"];
+      const rows = data.map(r => [r.user_id, r.type, r.a, r.b, r.c, r.created_at].join(","));
+      const csv = [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = 'responses_export.csv';
+      link.download = `ternary_survey_${new Date().toISOString().slice(0,10)}.csv`;
       link.click();
-      document.getElementById('export-status').innerText = '✅ CSV exported successfully.';
     }
   </script>
 </body>
 </html>
+
