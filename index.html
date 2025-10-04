@@ -142,26 +142,33 @@
             let a_ternary = AreaPBC_Signed / AreaABC_Signed;
             let b_ternary = AreaPAC_Signed / AreaABC_Signed;
             let c_ternary = AreaPAB_Signed / AreaABC_Signed;
-
-            // Check if the point is outside the plot area (negative weights or sum > 1 + epsilon)
-            // Plotly's ternary plots are strictly non-negative.
-            if (a_ternary < -0.01 || b_ternary < -0.01 || c_ternary < -0.01) {
-                return null;
-            }
             
-            // Normalize for perfect sum=1, necessary due to floating point math
+            // --- 🚨 DEFINITIVE FIX START ---
+            // If the sum is extremely far from 1, the point is definitely outside the plot area
             const sum = a_ternary + b_ternary + c_ternary;
-            if (Math.abs(sum - 1) > 1e-4) {
-                // If the sum is significantly off 1, the point is outside the triangle's plane 
-                // (e.g., in the large margins outside the plot area).
-                return null;
+            if (Math.abs(sum) < 0.1 || Math.abs(sum) > 2) {
+                return null; 
             }
+
+            // Normalize, then aggressively clamp values to prevent rejection due to float errors
+            let a = a_ternary / sum;
+            let b = b_ternary / sum;
+            let c = c_ternary / sum;
+            
+            a = Math.min(1, Math.max(0, a));
+            b = Math.min(1, Math.max(0, b));
+            c = Math.min(1, Math.max(0, c));
+            
+            // Final normalization to ensure A + B + C = 1 (critical)
+            const finalSum = a + b + c;
+            if (finalSum === 0) return { a: 0, b: 0, c: 0 }; 
 
             return { 
-                a: Math.max(0, a_ternary / sum), // Clamp to 0 and re-normalize
-                b: Math.max(0, b_ternary / sum),
-                c: Math.max(0, c_ternary / sum)
+                a: a / finalSum,
+                b: b / finalSum,
+                c: c / finalSum
             };
+            // --- 🚨 DEFINITIVE FIX END ---
         }
         
         // 🔹 Email Magic Link Login
@@ -287,7 +294,7 @@
 
                     } else {
                         // This indicates a click outside the valid triangle area.
-                        console.warn("Click registered, but point is outside the triangle boundaries.");
+                        console.warn("Click registered, but point is outside the triangle boundaries or margins.");
                     }
                 });
             });
