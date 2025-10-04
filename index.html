@@ -69,8 +69,12 @@
     // -------------------------
     // Set to your specific email address
     const ADMIN_EMAIL = 'cian.mcadam@ucdconnect.ie'; 
-
-    // -------------------------
+    
+    // -------------------------------------------------------------------------------------------------------
+    // 🔑 SUPABASE SERVICE ROLE KEY (UPDATED)
+    // This key is used *only* in the export function to bypass RLS.
+    // -------------------------------------------------------------------------------------------------------
+    const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTQ0MTIxOCwiZXhwIjoyMDc1MDE3MjE4fQ.WT_z-BJRTfu9EqO1Fig515aYF9FUOQGOQQgJ86AjM3Q'; // <--- **KEY UPDATED**     // -------------------------
     // 🔹 PLOTLY FUNCTIONS
     // -------------------------
     // Initialize responses with calculated defaults
@@ -180,10 +184,11 @@
     // -------------------------
     // 🔹 SUPABASE SETUP
     // -------------------------
+    // The public key (used for all user authentication and submissions)
     const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImexjZWI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
     
-    // Correctly initialize the client using window.supabase
+    // Initialize the client with the public key
     const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
     let user = null;
@@ -228,7 +233,6 @@
       if (session && session.user) {
         user = session.user;
         
-        // --- START DEBUGGING FIX ---
         // Ensure both emails are trimmed and lowercased for the most robust comparison.
         const adminEmailLower = ADMIN_EMAIL.toLowerCase().trim();
         const userEmailLower = user.email ? user.email.toLowerCase().trim() : '';
@@ -236,12 +240,10 @@
         // Determine if the logged-in user is the admin
         const isAdmin = userEmailLower === adminEmailLower;
 
-        // Logging added for user to verify the emails and the comparison result in the console
         console.log("--- Admin Check Debug ---");
         console.log("Configured Admin Email:", ADMIN_EMAIL);
         console.log("Logged-in User Email:", user.email);
         console.log("Comparison Result (isAdmin):", isAdmin);
-        // --- END DEBUGGING FIX ---
 
         // Update auth status
         let statusText = `✅ Welcome! You are logged in as: ${user.email}`;
@@ -315,20 +317,34 @@
     // 🔹 EXPORT FUNCTION
     // -------------------------
     async function exportToExcel() {
-        // Prevent unauthorized export attempts even if button visibility is somehow bypassed
+        // 1. Authorization Check (Client-side)
         if (!user || user.email.toLowerCase().trim() !== ADMIN_EMAIL.toLowerCase().trim()) {
             alert("🛑 Access Denied: Only the administrator can export data.");
             return;
         }
+
+        // 2. Service Key Check (No longer needed since the key is updated)
+        // Removed the check for 'SUPABASE_SERVICE_KEY_HERE'
         
-        // 1. Fetch all data from the 'responses' table
-        const { data, error } = await supabase
+        // 3. Create a temporary Supabase client using the Service Role Key
+        // This client bypasses RLS and allows fetching all data.
+        const serviceSupabase = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY, {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false,
+                detectSessionInUrl: false
+            }
+        });
+        
+        // 4. Fetch all data using the service role client
+        const { data, error } = await serviceSupabase
             .from('responses')
             .select('user_id, type, a, b, c, created_at'); // Include created_at for better data history
 
         if (error) {
-            console.error("Export Error:", error);
-            alert("Error fetching data for export. Check the browser console.");
+            // Log the RLS error details to the console for deep debugging
+            console.error("Export Error (Service Key attempt failed - check RLS/Key validity):", error); 
+            alert("Fatal Error fetching data for export. Check the browser console. This may indicate an issue with the Service Role Key or database configuration.");
             return;
         }
 
@@ -337,7 +353,7 @@
             return;
         }
 
-        // 2. Prepare the CSV content
+        // 5. Prepare the CSV content
         const headers = ["User ID", "Type", "Corporate (A)", "Human (B)", "Environmental (C)", "Timestamp"];
         
         // Map data to rows
@@ -353,7 +369,7 @@
         // Combine headers and rows
         const csvContent = headers.join(',') + '\n' + csvRows.join('\n');
 
-        // 3. Create a Blob and trigger download
+        // 6. Create a Blob and trigger download
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         
