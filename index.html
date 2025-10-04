@@ -228,8 +228,20 @@
       if (session && session.user) {
         user = session.user;
         
+        // --- START DEBUGGING FIX ---
+        // Ensure both emails are trimmed and lowercased for the most robust comparison.
+        const adminEmailLower = ADMIN_EMAIL.toLowerCase().trim();
+        const userEmailLower = user.email ? user.email.toLowerCase().trim() : '';
+
         // Determine if the logged-in user is the admin
-        const isAdmin = user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+        const isAdmin = userEmailLower === adminEmailLower;
+
+        // Logging added for user to verify the emails and the comparison result in the console
+        console.log("--- Admin Check Debug ---");
+        console.log("Configured Admin Email:", ADMIN_EMAIL);
+        console.log("Logged-in User Email:", user.email);
+        console.log("Comparison Result (isAdmin):", isAdmin);
+        // --- END DEBUGGING FIX ---
 
         // Update auth status
         let statusText = `✅ Welcome! You are logged in as: ${user.email}`;
@@ -304,7 +316,7 @@
     // -------------------------
     async function exportToExcel() {
         // Prevent unauthorized export attempts even if button visibility is somehow bypassed
-        if (!user || user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+        if (!user || user.email.toLowerCase().trim() !== ADMIN_EMAIL.toLowerCase().trim()) {
             alert("🛑 Access Denied: Only the administrator can export data.");
             return;
         }
