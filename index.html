@@ -124,6 +124,7 @@
     
     // SERVICE ROLE KEY: Used ONLY by the admin export function to bypass RLS.
     // This key must NEVER be used for regular user authentication.
+    // Ensure this key is correct and secret (do not share it widely).
     const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTQ0MTIxOCwiZXhwIjoyMDc1MDE3MjE4fQ.WT_z-BJRTfu9EqO1Fig515aYF9FUOQGOQQgJ86AjM3Q'; 
     // -------------------------
 
@@ -367,7 +368,7 @@
         // 2. Service Key Check
         if (!SUPABASE_SERVICE_KEY || SUPABASE_SERVICE_KEY === supabaseKey) {
              console.error("Critical Export Error: Service Key is invalid or identical to Public Key.");
-             alert("⚠️ Export Error: Service Key is missing or incorrect. Cannot bypass RLS.");
+             alert("⚠️ Export Error: Service Key is missing or incorrect. Cannot bypass RLS. Check the console.");
              return;
         }
         
@@ -436,3 +437,4 @@
   </script>
 </body>
 </html>
+
