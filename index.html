@@ -7,6 +7,27 @@
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
   <!-- Then load Supabase -->
   <script src="https://unpkg.com/@supabase/supabase-js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+        }
+        button {
+            padding: 8px 15px;
+            margin-top: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background-color: #f0f0f0;
+        }
+        #export-button {
+            background-color: #4CAF50; /* Green */
+            color: white;
+            border: none;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+    </style>
 </head>
 <body>
   <h1>Ternary Plot Survey</h1>
@@ -19,6 +40,9 @@
   <!-- Login -->
   <button onclick="signIn()">Login with Email</button>
   <p id="auth-status">Not logged in</p>
+
+    <!-- NEW EXPORT BUTTON -->
+    <button id="export-button" onclick="exportToExcel()">Export All Responses to CSV (Excel)</button>
 
   <!-- Present Day Plot -->
   <h2>Present Day Values</h2>
@@ -139,9 +163,13 @@
       });
     }
 
-    // Build both plots immediately
-    makePlot("plot-present", "result-present", "Present");
-    makePlot("plot-future", "result-future", "Future");
+    // --- FIX START: Wrap initialization logic in window.onload ---
+    window.onload = function() {
+        // Build both plots immediately
+        makePlot("plot-present", "result-present", "Present");
+        makePlot("plot-future", "result-future", "Future");
+    };
+    // --- FIX END ---
 
     // -------------------------
     // 🔹 SUPABASE SETUP
@@ -242,6 +270,62 @@
         alert("✅ Response successfully submitted!");
       }
     }
+
+    // -------------------------
+    // 🔹 EXPORT FUNCTION
+    // -------------------------
+    async function exportToExcel() {
+        // 1. Fetch all data from the 'responses' table
+        const { data, error } = await supabase
+            .from('responses')
+            .select('user_id, type, a, b, c, created_at'); // Include created_at for better data history
+
+        if (error) {
+            console.error("Export Error:", error);
+            alert("Error fetching data for export. Check the browser console.");
+            return;
+        }
+
+        if (!data || data.length === 0) {
+            alert("No data available to export.");
+            return;
+        }
+
+        // 2. Prepare the CSV content
+        const headers = ["User ID", "Type", "Corporate (A)", "Human (B)", "Environmental (C)", "Timestamp"];
+        
+        // Map data to rows
+        const csvRows = data.map(row => [
+            `"${row.user_id}"`, // Quote the user ID to handle potential commas/issues
+            row.type,
+            row.a.toFixed(4), // Format to 4 decimal places for precision
+            row.b.toFixed(4),
+            row.c.toFixed(4),
+            row.created_at
+        ].join(','));
+
+        // Combine headers and rows
+        const csvContent = headers.join(',') + '\n' + csvRows.join('\n');
+
+        // 3. Create a Blob and trigger download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        
+        // Create file name with current date
+        const date = new Date().toISOString().slice(0, 10);
+        link.download = `ternary_survey_data_${date}.csv`;
+        link.href = URL.createObjectURL(blob);
+        
+        // Append to body, click, and remove
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        alert(`✅ ${data.length} records exported successfully!`);
+    }
+
+    // Make the function globally accessible
+    window.exportToExcel = exportToExcel;
   </script>
 </body>
 </html>
