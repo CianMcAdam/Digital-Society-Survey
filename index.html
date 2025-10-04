@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <title>Ternary Plot Survey with Supabase Login</title>
-  <!-- Load Plotly first -->
-  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script> <!-- FIXED: Updated to specific version 2.32.0 -->
+  <!-- Load Plotly with an explicit, modern version -->
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
   <!-- Then load Supabase -->
   <script src="https://unpkg.com/@supabase/supabase-js"></script>
 </head>
@@ -149,21 +149,29 @@
     const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
     const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
     
-    // FIX: Correctly initialize the client using window.supabase
+    // Correctly initialize the client using window.supabase
     const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
     let user = null;
+    
+    // NEW HELPER: Function to get the current URL without existing query/hash parameters
+    // This is crucial for resolving the redirect 404 error in Canvas environments.
+    const getCurrentCleanUrl = () => {
+        const url = window.location.href;
+        // Split by '?' or '#' and return the base URL (path included)
+        return url.split(/[?#]/)[0];
+    };
 
     // Login with magic link
     async function signIn() {
       const email = prompt("Enter your email to receive a login link:");
       if (!email) return;
       
-      // FIX: Added emailRedirectTo option for better magic link flow
+      // FIX: Use the clean current URL for redirection to handle complex Canvas URLs
       const { error } = await supabase.auth.signInWithOtp({ 
         email, 
         options: { 
-            emailRedirectTo: window.location.origin 
+            emailRedirectTo: getCurrentCleanUrl()
         } 
       });
       
@@ -197,7 +205,7 @@
         return;
       }
         
-      // 🚨 NEW: Check if a response of this 'type' (present or future) already exists for this user.
+      // Check if a response of this 'type' (present or future) already exists for this user.
       const { data: existingResponse, error: selectError } = await supabase
         .from('responses')
         .select('id')
