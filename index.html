@@ -199,14 +199,15 @@
 
       var layout = {
         ternary: {
-          aaxis: { title: "Corporate Rights (A)", min: 0.0, ticksuffix: "%", tickformat: '.0%' },
-          baxis: { title: "Human Rights (B)", min: 0.0, ticksuffix: "%", tickformat: '.0%' },
-          caxis: { title: "Environmental Rights (C)", min: 0.0, ticksuffix: "%", tickformat: '.0%' },
+          aaxis: { title: "Corporate Rights (A)", min: 0.0, ticksuffix: "%", tickformat: '.0%', titlefont: { size: 14 } },
+          baxis: { title: "Human Rights (B)", min: 0.0, ticksuffix: "%", tickformat: '.0%', titlefont: { size: 14 } },
+          caxis: { title: "Environmental Rights (C)", min: 0.0, ticksuffix: "%", tickformat: '.0%', titlefont: { size: 14 } },
           sum: 1
         },
         title: label,
         clickmode: 'event+select',
-        margin: { t: 50, r: 20, b: 50, l: 20 },
+        // Increased left and bottom margins to ensure full axis titles are visible
+        margin: { t: 50, r: 20, b: 80, l: 80 }, 
         responsive: true
       };
 
