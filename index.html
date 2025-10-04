@@ -188,6 +188,7 @@
     // The public key (used for all user authentication and submissions)
     const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
     // FIX: Replaced the invalid public key with the correct 'anon' key for your project.
+    // This key is necessary for signIn() and anonymous/authenticated data submission.
     const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE2ODg0MTI4ODAsImV4cCI6MjAwMzk0ODg4MH0.Q7F_rE5Y3bS1wS1Q9D1J8y4m5L2kX6o_Z7X5f0Z0Q7Q";
     
     // Initialize the client with the public key
@@ -216,7 +217,9 @@
       });
       
       if (error) {
+          // Display the error message exactly as received
         alert("Login Error: " + error.message);
+        console.error("Login attempt failed:", error);
       } else {
         alert("✅ Success! Check your email for a magic login link. After clicking it, you’ll return here and be logged in automatically.");
       }
