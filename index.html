@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <title>Ternary Plot Survey with Supabase Login</title>
+  <!-- Load Plotly first -->
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <!-- Then load Supabase -->
   <script src="https://unpkg.com/@supabase/supabase-js"></script>
 </head>
 <body>
@@ -31,54 +33,29 @@
   <p id="result-future"></p>
 
   <script>
-    // 🔹 Connect to Supabase (your details)
-    const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
-    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
-
-    let user = null;
+    // -------------------------
+    // 🔹 PLOTLY FUNCTIONS
+    // -------------------------
     let responses = { present: null, future: null };
 
-    // 🔹 Email Magic Link Login
-    async function signIn() {
-      const email = prompt("Enter your email to receive a login link:");
-      if (!email) return;
-      const { error } = await supabase.auth.signInWithOtp({ email });
-      if (error) {
-        alert("Error: " + error.message);
-      } else {
-        alert("✅ Check your email for a magic login link. After clicking it, you’ll return here and be logged in automatically.");
-      }
-    }
-
-    // 🔹 Update login status automatically after magic link
-    supabase.auth.onAuthStateChange((event, session) => {
-      if (session && session.user) {
-        user = session.user;
-        document.getElementById("auth-status").innerText =
-          "✅ Welcome! You are logged in as: " + user.email;
-      } else {
-        user = null;
-        document.getElementById("auth-status").innerText = "Not logged in";
-      }
-    });
-
-    // 🔹 Function to create a ternary plot (high precision clicks)
     function makePlot(divId, resultId, label) {
-      // User's chosen dot
+      // Default blue dot in the center (0.33, 0.33, 0.34)
       var userDot = {
         type: 'scatterternary',
         mode: 'markers',
-        a: [],
-        b: [],
-        c: [],
+        a: [0.33],
+        b: [0.33],
+        c: [0.34],
         marker: { size: 14, color: 'blue' },
         name: "Your Choice"
       };
 
+      // Save default response
+      responses[label.toLowerCase()] = { a: 0.33, b: 0.33, c: 0.34 };
+
       // Transparent clickable grid (high resolution)
       let gridPoints = [];
-      let step = 0.02; // 🔹 finer precision (2% steps)
+      let step = 0.02; // finer precision
       for (let a = 0; a <= 1; a += step) {
         for (let b = 0; b <= 1 - a; b += step) {
           let c = 1 - a - b;
@@ -95,6 +72,10 @@
         b: gridPoints.map(p => p.b),
         c: gridPoints.map(p => p.c),
         marker: { size: 15, color: 'rgba(0,0,0,0)' }, // invisible clickable points
+        text: gridPoints.map(p => 
+          `Corporate: ${p.a.toFixed(2)}, Human: ${p.b.toFixed(2)}, Environmental: ${p.c.toFixed(2)}`
+        ),
+        hoverinfo: "text",
         name: "Clickable Area"
       };
 
@@ -114,6 +95,10 @@
 
       var plotDiv = document.getElementById(divId);
 
+      // Show default choice
+      document.getElementById(resultId).innerHTML =
+        `You chose → Corporate: 0.33, Human: 0.33, Environmental: 0.34`;
+
       // Capture clicks
       plotDiv.on('plotly_click', function(eventData) {
         var pt = eventData.points[0];
@@ -132,7 +117,44 @@
       });
     }
 
-    // 🔹 Submit response to Supabase
+    // Build both plots immediately
+    makePlot("plot-present", "result-present", "Present");
+    makePlot("plot-future", "result-future", "Future");
+
+    // -------------------------
+    // 🔹 SUPABASE SETUP
+    // -------------------------
+    const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
+    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+    let user = null;
+
+    // Login with magic link
+    async function signIn() {
+      const email = prompt("Enter your email to receive a login link:");
+      if (!email) return;
+      const { error } = await supabase.auth.signInWithOtp({ email });
+      if (error) {
+        alert("Error: " + error.message);
+      } else {
+        alert("✅ Check your email for a magic login link. After clicking it, you’ll return here and be logged in automatically.");
+      }
+    }
+
+    // Auth state change
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (session && session.user) {
+        user = session.user;
+        document.getElementById("auth-status").innerText =
+          "✅ Welcome! You are logged in as: " + user.email;
+      } else {
+        user = null;
+        document.getElementById("auth-status").innerText = "Not logged in";
+      }
+    });
+
+    // Submit response
     async function submitResponse(type) {
       if (!responses[type]) {
         alert("Please click inside the plot before submitting.");
@@ -159,10 +181,6 @@
         alert("✅ Response submitted!");
       }
     }
-
-    // 🔹 Build the two plots
-    makePlot("plot-present", "result-present", "Present");
-    makePlot("plot-future", "result-future", "Future");
   </script>
 </body>
 </html>
