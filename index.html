@@ -76,6 +76,20 @@
     const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTQ0MTIxOCwiZXhwIjoyMDc1MDE3MjE4fQ.WT_z-BJRTfu9EqO1Fig515aYF9FUOQGOQQgJ86AjM3Q';
     
     // -------------------------
+    // 🔑 SUPABASE PUBLIC (ANON) KEY
+    // This is the key that must be correct for client-side operations like sign-in.
+    // I am trying the confirmed key again.
+    // -------------------------
+    const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE2ODg0MTI4ODAsImV4cCI6MjAwMzk0ODg4MH0.Q7F_rE5Y3bS1wS1Q9D1J8y4m5L2kX6o_Z7X5f0Z0Q7Q";
+
+    // Client variable will be defined on load
+    let supabase = null; 
+
+    // User variable
+    let user = null;
+    
+    // -------------------------
     // 🔹 PLOTLY FUNCTIONS
     // -------------------------
     // Initialize responses with calculated defaults
@@ -176,25 +190,26 @@
       });
     }
 
+    // -------------------------
+    // 🔹 SUPABASE SETUP & EVENT LISTENERS
+    // -------------------------
+
+    // NEW: Initialize client inside onload to ensure library is fully loaded
     window.onload = function() {
+        // Initialize the client with the public key
+        if (window.supabase) {
+            supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+            console.log("Supabase Client initialized with provided public key.");
+            // Attach auth listener after initialization
+            supabase.auth.onAuthStateChange(handleAuthStateChange);
+        } else {
+            console.error("Supabase library not loaded.");
+        }
+
         // Build both plots immediately
         makePlot("plot-present", "result-present", "Present");
         makePlot("plot-future", "result-future", "Future");
     };
-
-    // -------------------------
-    // 🔹 SUPABASE SETUP
-    // -------------------------
-    // The public key (used for all user authentication and submissions)
-    const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
-    // FIX: Replaced the invalid public key with the correct 'anon' key for your project.
-    // This key is necessary for signIn() and anonymous/authenticated data submission.
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE2ODg0MTI4ODAsImV4cCI6MjAwMzk0ODg4MH0.Q7F_rE5Y3bS1wS1Q9D1J8y4m5L2kX6o_Z7X5f0Z0Q7Q";
-    
-    // Initialize the client with the public key
-    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
-
-    let user = null;
     
     // NEW HELPER: Function to get the current URL without existing query/hash parameters
     const getCurrentCleanUrl = () => {
@@ -205,10 +220,13 @@
 
     // Login with magic link
     async function signIn() {
+        if (!supabase) {
+            alert("Application is still loading. Please wait a moment.");
+            return;
+        }
       const email = prompt("Enter your email to receive a login link:");
       if (!email) return;
       
-      // FIX: Use the clean current URL for redirection to handle complex Canvas URLs
       const { error } = await supabase.auth.signInWithOtp({ 
         email, 
         options: { 
@@ -233,8 +251,8 @@
         }
     }
 
-    // Auth state change
-    supabase.auth.onAuthStateChange((event, session) => {
+    // Auth state change handler
+    function handleAuthStateChange(event, session) {
       if (session && session.user) {
         user = session.user;
         
@@ -245,9 +263,8 @@
         // Determine if the logged-in user is the admin
         const isAdmin = userEmailLower === adminEmailLower;
 
-        console.log("--- Admin Check Debug ---");
-        console.log("Configured Admin Email:", ADMIN_EMAIL);
-        console.log("Logged-in User Email:", user.email);
+        console.log("--- Auth Status Debug ---");
+        console.log("User Logged In:", user.email);
         console.log("Comparison Result (isAdmin):", isAdmin);
 
         // Update auth status
@@ -267,10 +284,15 @@
         // Hide admin elements when logged out
         toggleAdminElements(false);
       }
-    });
+    };
 
     // Submit response
     async function submitResponse(type) {
+        if (!supabase) {
+            alert("Application is still loading. Please wait a moment.");
+            return;
+        }
+
       if (!responses[type]) {
         alert("Please click inside the plot before submitting.");
         return;
@@ -388,7 +410,9 @@
         alert(`✅ ${data.length} records exported successfully!`);
     }
 
-    // Make the function globally accessible
+    // Make the functions globally accessible
+    window.signIn = signIn;
+    window.submitResponse = submitResponse;
     window.exportToExcel = exportToExcel;
   </script>
 </body>
