@@ -1,186 +1,239 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Ternary Plot Survey with Supabase Login</title>
-  <!-- Load Plotly first -->
-  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-  <!-- Then load Supabase -->
-  <script src="https://unpkg.com/@supabase/supabase-js"></script>
+  <meta charset="UTF-8">
+  <title>Ternary Plot Survey with Supabase Login</title>
+  <!-- Load Plotly first -->
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script> <!-- FIXED: Updated to specific version 2.32.0 -->
+  <!-- Then load Supabase -->
+  <script src="https://unpkg.com/@supabase/supabase-js"></script>
 </head>
 <body>
-  <h1>Ternary Plot Survey</h1>
-  <p>
-    Please indicate the relative importance of
-    <b>Corporate Rights</b>, <b>Human Rights</b>, and <b>Environmental Rights</b>.
-    You must log in before submitting.
-  </p>
+  <h1>Ternary Plot Survey</h1>
+  <p>
+    Please indicate the relative importance of
+    <b>Corporate Rights</b>, <b>Human Rights</b>, and <b>Environmental Rights</b>.
+    You must log in before submitting.
+  </p>
 
-  <!-- Login -->
-  <button onclick="signIn()">Login with Email</button>
-  <p id="auth-status">Not logged in</p>
+  <!-- Login -->
+  <button onclick="signIn()">Login with Email</button>
+  <p id="auth-status">Not logged in</p>
 
-  <!-- Present Day Plot -->
-  <h2>Present Day Values</h2>
-  <div id="plot-present" style="width:600px;height:600px;"></div>
-  <button onclick="submitResponse('present')">Submit Present Response</button>
-  <p id="result-present"></p>
+  <!-- Present Day Plot -->
+  <h2>Present Day Values</h2>
+  <div id="plot-present" style="width:600px;height:600px;"></div>
+  <button onclick="submitResponse('present')">Submit Present Response</button>
+  <p id="result-present"></p>
 
-  <!-- Future Plot -->
-  <h2>Values in 2075</h2>
-  <div id="plot-future" style="width:600px;height:600px;"></div>
-  <button onclick="submitResponse('future')">Submit Future Response</button>
-  <p id="result-future"></p>
+  <!-- Future Plot -->
+  <h2>Values in 2075</h2>
+  <div id="plot-future" style="width:600px;height:600px;"></div>
+  <button onclick="submitResponse('future')">Submit Future Response</button>
+  <p id="result-future"></p>
 
-  <script>
-    // -------------------------
-    // 🔹 PLOTLY FUNCTIONS
-    // -------------------------
-    let responses = { present: null, future: null };
+  <script>
+    // Define initial responses at the center (1/3, 1/3, 1/3)
+    const defaultA = 1/3;
+    const defaultB = 1/3;
+    const defaultC = 1 - defaultA - defaultB; // Ensure sum is 1
+    
+    // -------------------------
+    // 🔹 PLOTLY FUNCTIONS
+    // -------------------------
+    // Initialize responses with calculated defaults
+    let responses = { 
+        present: { a: defaultA, b: defaultB, c: defaultC }, 
+        future: { a: defaultA, b: defaultB, c: defaultC } 
+    };
 
-    function makePlot(divId, resultId, label) {
-      // Default blue dot in the center (0.33, 0.33, 0.34)
-      var userDot = {
-        type: 'scatterternary',
-        mode: 'markers',
-        a: [0.33],
-        b: [0.33],
-        c: [0.34],
-        marker: { size: 14, color: 'blue' },
-        name: "Your Choice"
-      };
+    function makePlot(divId, resultId, label) {
+      const initialResponse = responses[label.toLowerCase()];
+    
+      // Default blue dot using consistent calculated values
+      var userDot = {
+        type: 'scatterternary',
+        mode: 'markers',
+        a: [initialResponse.a],
+        b: [initialResponse.b],
+        c: [initialResponse.c],
+        marker: { size: 14, color: 'blue' },
+        name: "Your Choice"
+      };
 
-      // Save default response
-      responses[label.toLowerCase()] = { a: 0.33, b: 0.33, c: 0.34 };
+      // Transparent clickable grid (high resolution)
+      let gridPoints = [];
+      let step = 0.02; // finer precision
+      for (let a = 0; a <= 1 + 1e-6; a += step) { // +1e-6 for float precision
+        for (let b = 0; b <= 1 - a + 1e-6; b += step) {
+          let c = 1 - a - b;
+          if (c >= -1e-6) { // allow slight negative due to float errors
+            gridPoints.push({a, b, c});
+          }
+        }
+      }
 
-      // Transparent clickable grid (high resolution)
-      let gridPoints = [];
-      let step = 0.02; // finer precision
-      for (let a = 0; a <= 1; a += step) {
-        for (let b = 0; b <= 1 - a; b += step) {
-          let c = 1 - a - b;
-          if (c >= 0) {
-            gridPoints.push({a, b, c});
-          }
+      var clickableLayer = {
+        type: 'scatterternary',
+        mode: 'markers',
+        a: gridPoints.map(p => p.a),
+        b: gridPoints.map(p => p.b),
+        c: gridPoints.map(p => p.c),
+        marker: { size: 15, color: 'rgba(0,0,0,0)' }, // invisible clickable points
+        text: gridPoints.map(p => 
+          `Corporate: ${p.a.toFixed(2)}, Human: ${p.b.toFixed(2)}, Environmental: ${p.c.toFixed(2)}`
+        ),
+        hoverinfo: "text",
+        name: "Clickable Area"
+      };
+
+      // Place userDot (trace index 1) on top of clickableLayer (trace index 0)
+      var data = [clickableLayer, userDot];
+
+      var layout = {
+        ternary: {
+          aaxis: { title: "Corporate Rights", min: 0.01 },
+          baxis: { title: "Human Rights", min: 0.01 },
+          caxis: { title: "Environmental Rights", min: 0.01 }
+        },
+        title: label,
+        clickmode: 'event+select'
+      };
+
+      Plotly.newPlot(divId, data, layout);
+
+      var plotDiv = document.getElementById(divId);
+        const type = label.toLowerCase();
+        
+      // Show default choice
+      document.getElementById(resultId).innerHTML =
+        `You chose → Corporate: ${initialResponse.a.toFixed(2)}, Human: ${initialResponse.b.toFixed(2)}, Environmental: ${initialResponse.c.toFixed(2)}`;
+
+      // Capture clicks
+      plotDiv.on('plotly_click', function(eventData) {
+        var pt = eventData.points[0];
+        var a = pt.a;
+        var b = pt.b;
+        var c = pt.c;
+
+        // Ensure values sum to 1 and are non-negative, and correct float errors
+        const sum = a + b + c;
+        if (sum > 0.99 && sum < 1.01) { // Check if close to 1
+             a = a / sum;
+             b = b / sum;
+             c = c / sum;
+        } else {
+            // Plotly's click event should provide valid ternary points, but just in case
+            console.warn("Plotly click gave non-normalized values.");
+            return; 
         }
-      }
 
-      var clickableLayer = {
-        type: 'scatterternary',
-        mode: 'markers',
-        a: gridPoints.map(p => p.a),
-        b: gridPoints.map(p => p.b),
-        c: gridPoints.map(p => p.c),
-        marker: { size: 15, color: 'rgba(0,0,0,0)' }, // invisible clickable points
-        text: gridPoints.map(p => 
-          `Corporate: ${p.a.toFixed(2)}, Human: ${p.b.toFixed(2)}, Environmental: ${p.c.toFixed(2)}`
-        ),
-        hoverinfo: "text",
-        name: "Clickable Area"
-      };
+        responses[type] = { a, b, c };
 
-      var data = [clickableLayer, userDot];
+        // Update marker (Trace 1)
+        Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [1]);
 
-      var layout = {
-        ternary: {
-          aaxis: { title: "Corporate Rights", min: 0.01 },
-          baxis: { title: "Human Rights", min: 0.01 },
-          caxis: { title: "Environmental Rights", min: 0.01 }
-        },
-        title: label,
-        clickmode: 'event+select'
-      };
+        // Show choice
+        document.getElementById(resultId).innerHTML =
+          `You chose → Corporate: ${a.toFixed(2)}, Human: ${b.toFixed(2)}, Environmental: ${c.toFixed(2)}`;
+      });
+    }
 
-      Plotly.newPlot(divId, data, layout);
+    // Build both plots immediately
+    makePlot("plot-present", "result-present", "Present");
+    makePlot("plot-future", "result-future", "Future");
 
-      var plotDiv = document.getElementById(divId);
+    // -------------------------
+    // 🔹 SUPABASE SETUP
+    // -------------------------
+    const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
+    
+    // FIX: Correctly initialize the client using window.supabase
+    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-      // Show default choice
-      document.getElementById(resultId).innerHTML =
-        `You chose → Corporate: 0.33, Human: 0.33, Environmental: 0.34`;
+    let user = null;
 
-      // Capture clicks
-      plotDiv.on('plotly_click', function(eventData) {
-        var pt = eventData.points[0];
-        var a = pt.a;
-        var b = pt.b;
-        var c = pt.c;
-
-        responses[label.toLowerCase()] = { a, b, c };
-
-        // Update marker
-        Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [1]);
-
-        // Show choice
-        document.getElementById(resultId).innerHTML =
-          `You chose → Corporate: ${a.toFixed(2)}, Human: ${b.toFixed(2)}, Environmental: ${c.toFixed(2)}`;
+    // Login with magic link
+    async function signIn() {
+      const email = prompt("Enter your email to receive a login link:");
+      if (!email) return;
+      
+      // FIX: Added emailRedirectTo option for better magic link flow
+      const { error } = await supabase.auth.signInWithOtp({ 
+        email, 
+        options: { 
+            emailRedirectTo: window.location.origin 
+        } 
       });
-    }
+      
+      if (error) {
+        alert("Login Error: " + error.message);
+      } else {
+        alert("✅ Success! Check your email for a magic login link. After clicking it, you’ll return here and be logged in automatically.");
+      }
+    }
 
-    // Build both plots immediately
-    makePlot("plot-present", "result-present", "Present");
-    makePlot("plot-future", "result-future", "Future");
+    // Auth state change
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (session && session.user) {
+        user = session.user;
+        document.getElementById("auth-status").innerText =
+          "✅ Welcome! You are logged in as: " + user.email;
+      } else {
+        user = null;
+        document.getElementById("auth-status").innerText = "Not logged in";
+      }
+    });
 
-    // -------------------------
-    // 🔹 SUPABASE SETUP
-    // -------------------------
-    const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
-    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+    // Submit response
+    async function submitResponse(type) {
+      if (!responses[type]) {
+        alert("Please click inside the plot before submitting.");
+        return;
+      }
+      if (!user) {
+        alert("Please log in first.");
+        return;
+      }
+        
+      // 🚨 NEW: Check if a response of this 'type' (present or future) already exists for this user.
+      const { data: existingResponse, error: selectError } = await supabase
+        .from('responses')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('type', type);
 
-    let user = null;
-
-    // Login with magic link
-    async function signIn() {
-      const email = prompt("Enter your email to receive a login link:");
-      if (!email) return;
-      const { error } = await supabase.auth.signInWithOtp({ email });
-      if (error) {
-        alert("Error: " + error.message);
-      } else {
-        alert("✅ Check your email for a magic login link. After clicking it, you’ll return here and be logged in automatically.");
-      }
-    }
-
-    // Auth state change
-    supabase.auth.onAuthStateChange((event, session) => {
-      if (session && session.user) {
-        user = session.user;
-        document.getElementById("auth-status").innerText =
-          "✅ Welcome! You are logged in as: " + user.email;
-      } else {
-        user = null;
-        document.getElementById("auth-status").innerText = "Not logged in";
-      }
-    });
-
-    // Submit response
-    async function submitResponse(type) {
-      if (!responses[type]) {
-        alert("Please click inside the plot before submitting.");
+      if (selectError) {
+        console.error("Error checking existing response:", selectError);
+        alert("Error checking submission status. See console for details.");
         return;
       }
-      if (!user) {
-        alert("Please log in first.");
+      
+      // If the query returned one or more rows, the user has already submitted.
+      if (existingResponse && existingResponse.length > 0) {
+        alert(`⚠️ You have already submitted your response for '${type}'. You are limited to one submission per plot.`);
         return;
       }
+      
+      // If the user has not submitted yet, proceed with insertion.
+      const { error: insertError } = await supabase
+        .from("responses")
+        .insert([{
+          user_id: user.id,
+          type: type,
+          a: responses[type].a,
+          b: responses[type].b,
+          c: responses[type].c
+        }]);
 
-      const { error } = await supabase
-        .from("responses")
-        .insert([{
-          user_id: user.id,
-          type: type,
-          a: responses[type].a,
-          b: responses[type].b,
-          c: responses[type].c
-        }]);
-
-      if (error) {
-        alert("Error: " + error.message + " (You may have already submitted for this plot.)");
-      } else {
-        alert("✅ Response submitted!");
-      }
-    }
-  </script>
+      if (insertError) {
+        console.error("Submission Error:", insertError);
+        alert("Error submitting response: " + insertError.message);
+      } else {
+        alert("✅ Response successfully submitted!");
+      }
+    }
+  </script>
 </body>
 </html>
