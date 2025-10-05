@@ -287,85 +287,48 @@
       if (!user || !ADMIN_EMAILS.includes(userEmail))
         return alert("🛑 Only admin can export data.");
 
-      const serviceSupabase = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY);
+      // Use the Service Key to create an admin client
+      const adminClient = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY, {
+        auth: { persistSession: false }, // Prevent session conflict
+      });
       
       // 1. Fetch all responses
-      const { data: responsesData, error: responsesError } = await serviceSupabase
+      const { data: responsesData, error: responsesError } = await adminClient
           .from("responses")
           .select("*");
       
       if (responsesError) {
         console.error("Error fetching responses:", responsesError);
-        return alert("Error fetching responses: Check console.");
+        return alert("Error fetching responses: Check console. If the error is 'Permission denied,' your RLS policy on 'responses' for the service key may be too strict.");
       }
       
       if (!responsesData.length) return alert("No responses found.");
 
-      // 2. Extract unique user IDs
-      const userIds = [...new Set(responsesData.map(r => r.user_id))];
-
-      // 3. Fetch user details (including emails) using the service key
-      // NOTE: We cannot use the standard client for this, we need to access the GoTrue (auth) API directly,
-      // which is unfortunately not possible via the Supabase JS client's standard `.auth.admin.listUsers()` 
-      // when running inside an arbitrary environment like this without a server.
-      // 
-      // Instead, we will use a common *workaround*: using a Postgres function 
-      // or directly querying the `auth.users` table, which requires custom
-      // view/function setup in the DB, or relying on a view like `profiles`.
-      //
-      // For simplicity in a single-file app, we'll try to fetch all user data 
-      // *from the `auth.users` table* which is only possible if you have 
-      // created a read-only **VIEW** or function for admins, as the JS client 
-      // cannot typically access `auth.users` directly like this.
-      // 
-      // A more robust client-side workaround involves fetching from the `public.users` or `public.profiles`
-      // table if you have created one that replicates `auth.users` for admin reading.
-      // 
-      // Assuming a public table/view named `public.user_emails` exists with columns (id, email):
-
-      // 🛑 OPTION A (Best, if you create a VIEW in Supabase):
-      // The Supabase JS Client *cannot* securely query the internal auth.users table 
-      // even with a service key unless you expose a SQL view to the public schema.
-      // This client-side code will often fail in a browser environment:
-      /*
-      const { data: usersData, error: usersError } = await serviceSupabase
-          .from("auth.users") // This will likely fail in the browser
-          .select("id, email");
-      */
-      
-      // ✅ OPTION B (The reliable way in a browser, assumes you set up a simple `user_emails` VIEW/TABLE):
-      // Since this is a simple survey, we'll assume a public table `user_profiles` 
-      // *exists* (which you need to create) that syncs user IDs and emails.
-      //
-      // Since we cannot rely on a custom view being set up, the SAFEST approach is 
-      // to simply tell the admin how to manually link the IDs using the Supabase UI 
-      // or SQL, but since the user is asking for the fix *here*, we will 
-      // temporarily fetch from the **`auth.users`** table and hope the environment allows it.
-      // If it fails, the error message will inform the user it's a security/permission issue.
-      
+      // 2. Fetch all users (including emails) using the Supabase Admin API
       let allUsers = [];
+      let userEmailMap = {};
+
       try {
-        const adminClient = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY, {
-          auth: { persistSession: false }, // Prevent session conflict
-        });
-        // This is a special, unlisted endpoint that MAY work with the service key in some contexts
-        // or may require a server function. We use it as the best effort for client-side join.
-        // NOTE: This will only retrieve users that have actually submitted responses.
-        const { data: usersResponse, error: usersError } = await adminClient.from('users').select('id, email');
+        // We use the auth.admin.listUsers() method to get all user data, which includes email.
+        // This requires the Service Role Key and will only work if the browser doesn't block it.
+        const { data: { users: usersData }, error: usersError } = await adminClient.auth.admin.listUsers();
+        
         if (usersError) throw usersError;
-        allUsers = usersResponse || [];
+        allUsers = usersData || [];
+        
+        // Map user IDs to their emails
+        userEmailMap = allUsers.reduce((map, u) => {
+            map[u.id] = u.email || 'N/A';
+            return map;
+        }, {});
+
       } catch (e) {
-         console.error("Failed to fetch user emails (expected in browser context):", e);
-         alert("Warning: Could not fetch user emails due to permission/browser security. Exporting with only user IDs.");
+         console.error("Failed to fetch user emails via Admin API (expected in some browser contexts):", e);
+         alert("⚠️ Warning: Could not fetch user emails using the Admin API. Exporting with only user IDs. Check console for error details (likely CSP or CORS block).");
       }
       
-      const userEmailMap = allUsers.reduce((map, user) => {
-          map[user.id] = user.email || 'N/A';
-          return map;
-      }, {});
 
-
-      // 4. Map and Prepare CSV
+      // 3. Map and Prepare CSV
       const csv = [
         ["user_id", "email", "type", "corporate_a", "human_b", "environmental_c", "created_at"],
         ...responsesData.map(r => [
@@ -379,7 +342,7 @@
         ])
       ].map(row => row.join(",")).join("\n");
 
-      // 5. Generate and Download CSV
+      // 4. Generate and Download CSV
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
@@ -389,7 +352,7 @@
       link.click();
       document.body.removeChild(link);
 
-      alert(`✅ ${responsesData.length} records exported successfully.`);
+      alert(`✅ ${responsesData.length} records exported successfully. Check the 'email' column!`);
     }
 
     window.signIn = signIn;
