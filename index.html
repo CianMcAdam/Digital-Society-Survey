@@ -273,7 +273,8 @@
         if (error) {
           showMessage("Login Error: " + error.message, 'error');
         } else {
-          showMessage("Check your email for a magic link. After clicking it, you'll return here logged in.", 'success');
+          // *** UPDATED SUCCESS MESSAGE AS REQUESTED ***
+          showMessage("Success! Check your email for a magic login link to access the survey.", 'success');
         }
       } catch (e) {
         showMessage("An unexpected error occurred during sign-in.", 'error');
@@ -293,7 +294,7 @@
         const isAdmin = user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
         // 1. Display logged-in user's email
-        authStatus.innerText = `✅ Logged in as: ${user.email}`;
+        authStatus.innerText = `✅ Logged in as: ${user.email} ${isAdmin ? '(Admin)' : ''}`;
         authStatus.classList.add(isAdmin ? 'bg-green-200' : 'bg-warning-yellow', isAdmin ? 'text-green-800' : 'text-gray-900');
 
         // 2. Control visibility of Export button and Admin Banner
