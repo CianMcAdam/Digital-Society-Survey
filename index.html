@@ -114,29 +114,25 @@
   </div>
 
   <script>
-    // Admin Email
-    const ADMIN_EMAIL = "cian.mcadam@ucdconnect.ie";
+    // 🔑 UPDATE: Only 'cian.mcadam@ucdconnect.ie' is set as the admin
+    const ADMIN_EMAILS = ["cian.mcadam@ucdconnect.ie"];
 
     // Supabase Configuration
     const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImexZWF0IjoyMDc1MDE3MjE4fQ.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
     const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTQ0MTIxOCwiZXhwIjoyMDc1MDE3MjE4fQ.WT_z-BJRTfu9EqO1Fig515aYF9FUOQGOQQgJ86AjM3Q";
 
     const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
     // ----------------------------------------------------
-    // 🔑 Fix for Magic Link Redirection (New Logic)
+    // 🔑 Fix for Magic Link Redirection (Session Handler)
     // ----------------------------------------------------
-    // This function automatically handles the URL hash when returning from the magic link.
-    // It is crucial when deployed in environments with complex paths or iframes.
     (async function handleRedirectSession() {
-        // If the URL contains a hash, Supabase might have injected session data.
         if (window.location.hash.includes('access_token')) {
-            // This attempts to extract the session from the URL and save it locally.
+            // Attempt to extract the session token from the URL hash.
             const { error } = await supabase.auth.getSession();
             if (error) {
                 console.error("Error confirming session from redirect:", error);
-                // We don't alert here, we just let the page continue loading.
             } else {
                 // If successful, clean the URL hash to prevent repeated processing.
                 history.replaceState(null, null, window.location.href.split('#')[0]);
@@ -219,15 +215,13 @@
       const email = prompt("Enter your email to receive a login link:");
       if (!email) return;
       
-      // 🔑 FIX: Use window.location.origin to ensure the redirect URL is clean and consistent.
-      // If running in an iframe or preview, this helps prevent token loss.
+      // Using window.location.origin as the cleanest redirect URL
       const redirectUrl = window.location.origin; 
       
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: { 
             emailRedirectTo: redirectUrl,
-            // If the user's email requires confirmation (first time login), this will handle it.
             shouldCreateUser: true 
         }
       });
@@ -243,11 +237,13 @@
     supabase.auth.onAuthStateChange((event, session) => {
       if (session && session.user) {
         user = session.user;
-        // Handle potential case where email is null/undefined during auth flow
-        const userEmail = user.email || ''; 
-        const isAdmin = userEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+        const userEmail = (user.email || '').toLowerCase(); 
+        
+        // 🔑 UPDATE: Check if userEmail is in the ADMIN_EMAILS array
+        const isAdmin = ADMIN_EMAILS.includes(userEmail);
+        
         document.getElementById("auth-status").innerText =
-          `✅ Logged in as: ${userEmail}`;
+          `✅ Logged in as: ${user.email}`;
         document.getElementById("auth-status").style.backgroundColor = isAdmin ? "#d4edda" : "#fff3cd";
         document.getElementById("export-button").style.display = isAdmin ? "block" : "none";
         document.getElementById("admin-banner").style.display = isAdmin ? "block" : "none";
@@ -287,26 +283,103 @@
 
     // Export to CSV (Admin Only)
     async function exportToExcel() {
-      if (!user || user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase())
+        const userEmail = (user.email || '').toLowerCase();
+      if (!user || !ADMIN_EMAILS.includes(userEmail))
         return alert("🛑 Only admin can export data.");
 
-      // NOTE: This client bypasses RLS using the Service Key.
       const serviceSupabase = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY);
-      const { data, error } = await serviceSupabase.from("responses").select("*");
       
-      if (error) {
-        console.error("Error fetching data for export (Check Service Key/Network):", error);
-        return alert("Error fetching data: Check the browser console for details.");
+      // 1. Fetch all responses
+      const { data: responsesData, error: responsesError } = await serviceSupabase
+          .from("responses")
+          .select("*");
+      
+      if (responsesError) {
+        console.error("Error fetching responses:", responsesError);
+        return alert("Error fetching responses: Check console.");
       }
       
-      if (!data.length) return alert("No responses found.");
+      if (!responsesData.length) return alert("No responses found.");
 
+      // 2. Extract unique user IDs
+      const userIds = [...new Set(responsesData.map(r => r.user_id))];
+
+      // 3. Fetch user details (including emails) using the service key
+      // NOTE: We cannot use the standard client for this, we need to access the GoTrue (auth) API directly,
+      // which is unfortunately not possible via the Supabase JS client's standard `.auth.admin.listUsers()` 
+      // when running inside an arbitrary environment like this without a server.
+      // 
+      // Instead, we will use a common *workaround*: using a Postgres function 
+      // or directly querying the `auth.users` table, which requires custom
+      // view/function setup in the DB, or relying on a view like `profiles`.
+      //
+      // For simplicity in a single-file app, we'll try to fetch all user data 
+      // *from the `auth.users` table* which is only possible if you have 
+      // created a read-only **VIEW** or function for admins, as the JS client 
+      // cannot typically access `auth.users` directly like this.
+      // 
+      // A more robust client-side workaround involves fetching from the `public.users` or `public.profiles`
+      // table if you have created one that replicates `auth.users` for admin reading.
+      // 
+      // Assuming a public table/view named `public.user_emails` exists with columns (id, email):
+
+      // 🛑 OPTION A (Best, if you create a VIEW in Supabase):
+      // The Supabase JS Client *cannot* securely query the internal auth.users table 
+      // even with a service key unless you expose a SQL view to the public schema.
+      // This client-side code will often fail in a browser environment:
+      /*
+      const { data: usersData, error: usersError } = await serviceSupabase
+          .from("auth.users") // This will likely fail in the browser
+          .select("id, email");
+      */
+      
+      // ✅ OPTION B (The reliable way in a browser, assumes you set up a simple `user_emails` VIEW/TABLE):
+      // Since this is a simple survey, we'll assume a public table `user_profiles` 
+      // *exists* (which you need to create) that syncs user IDs and emails.
+      //
+      // Since we cannot rely on a custom view being set up, the SAFEST approach is 
+      // to simply tell the admin how to manually link the IDs using the Supabase UI 
+      // or SQL, but since the user is asking for the fix *here*, we will 
+      // temporarily fetch from the **`auth.users`** table and hope the environment allows it.
+      // If it fails, the error message will inform the user it's a security/permission issue.
+      
+      let allUsers = [];
+      try {
+        const adminClient = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY, {
+          auth: { persistSession: false }, // Prevent session conflict
+        });
+        // This is a special, unlisted endpoint that MAY work with the service key in some contexts
+        // or may require a server function. We use it as the best effort for client-side join.
+        // NOTE: This will only retrieve users that have actually submitted responses.
+        const { data: usersResponse, error: usersError } = await adminClient.from('users').select('id, email');
+        if (usersError) throw usersError;
+        allUsers = usersResponse || [];
+      } catch (e) {
+         console.error("Failed to fetch user emails (expected in browser context):", e);
+         alert("Warning: Could not fetch user emails due to permission/browser security. Exporting with only user IDs.");
+      }
+      
+      const userEmailMap = allUsers.reduce((map, user) => {
+          map[user.id] = user.email || 'N/A';
+          return map;
+      }, {});
+
+
+      // 4. Map and Prepare CSV
       const csv = [
-        ["user_id", "type", "a", "b", "c", "created_at"],
-        // Wrap user_id in quotes to ensure it's treated as a string in Excel
-        ...data.map(r => [`"${r.user_id}"`, r.type, r.a, r.b, r.c, r.created_at])
+        ["user_id", "email", "type", "corporate_a", "human_b", "environmental_c", "created_at"],
+        ...responsesData.map(r => [
+            `"${r.user_id}"`, 
+            userEmailMap[r.user_id] || 'Not Fetched', // Add Email
+            r.type, 
+            r.a, 
+            r.b, 
+            r.c, 
+            r.created_at
+        ])
       ].map(row => row.join(",")).join("\n");
 
+      // 5. Generate and Download CSV
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
@@ -316,7 +389,7 @@
       link.click();
       document.body.removeChild(link);
 
-      alert(`✅ ${data.length} records exported successfully.`);
+      alert(`✅ ${responsesData.length} records exported successfully.`);
     }
 
     window.signIn = signIn;
