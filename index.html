@@ -38,8 +38,8 @@
 
 <body class="bg-gray-50 min-h-screen p-4 md:p-8 font-sans">
 
-  <!-- Global Message Box -->
-  <div id="message-box" class="fixed top-4 right-4 z-50 transition-all duration-300 transform translate-x-full">
+  <!-- Global Message Box - Z-index increased, position slightly moved left for visibility -->
+  <div id="message-box" class="fixed top-4 right-6 z-[100] max-w-xs md:max-w-sm transition-all duration-300 transform translate-x-full">
     <!-- Messages will be injected here -->
   </div>
 
@@ -132,19 +132,21 @@
           icon = 'ℹ️';
       }
 
-      box.className = `p-4 mb-2 rounded-lg shadow-xl font-semibold ${bgColor} ${textColor} transform translate-x-0 transition-all duration-300`;
-      box.innerHTML = `${icon} ${text}`;
+      box.className = `p-4 mb-2 rounded-lg shadow-xl font-semibold ${bgColor} ${textColor} opacity-0 transition-all duration-300 transform translate-x-0`;
+
+      // Use a container div to help manage width and prevent overlap with scrollbar
+      box.innerHTML = `<div class="flex items-start space-x-2">${icon}<span class="flex-1">${text}</span></div>`;
 
       const container = document.getElementById('message-box');
       container.appendChild(box);
 
-      // Slide in
+      // Slide in and fade up
       setTimeout(() => box.style.opacity = 1, 10);
 
       // Slide out and remove
       setTimeout(() => {
         box.style.opacity = 0;
-        box.style.transform = 'translateX(100%)';
+        box.style.transform = 'translateY(100px)'; // Slide down and fade out
         setTimeout(() => box.remove(), 300);
       }, 5000);
     }
