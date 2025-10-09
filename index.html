@@ -188,6 +188,7 @@
         name: "Your Choice"
       };
 
+      // Create a grid of points for a wider clickable area.
       const gridPoints = [];
       for (let a = 0; a <= 1; a += 0.01) {
         for (let b = 0; b <= 1 - a; b += 0.01) {
@@ -211,9 +212,9 @@
       const layout = {
         ternary: {
           sum: 1, // Ensure sum constraint
-          aaxis: { title: "Corporate Rights", min: 0.01, max: 1, tickformat: '.2f', linecolor: '#333' },
-          baxis: { title: "Human Rights", min: 0.01, max: 1, tickformat: '.2f', linecolor: '#333' },
-          caxis: { title: "Environmental Rights", min: 0.01, max: 1, tickformat: '.2f', linecolor: '#333' },
+          aaxis: { title: "Corporate Rights", min: 0, max: 1, tickformat: '.2f', linecolor: '#333' },
+          baxis: { title: "Human Rights", min: 0, max: 1, tickformat: '.2f', linecolor: '#333' },
+          caxis: { title: "Environmental Rights", min: 0, max: 1, tickformat: '.2f', linecolor: '#333' },
           bgcolor: '#f9f9f9'
         },
         title: { text: label + " Values", font: { size: 18, family: 'Inter' } },
@@ -230,15 +231,16 @@
       // Update the initial result text
       const initialA = initial.a.toFixed(2), initialB = initial.b.toFixed(2), initialC = initial.c.toFixed(2);
       document.getElementById(resultId).innerText =
-        `Initial selection → Corporate: ${initialA}, Human: ${initialB}, Environmental: ${initialC}`;
+        `Current selection → Corporate: ${initialA}, Human: ${initialB}, Environmental: ${initialC}`;
 
       plotDiv.on('plotly_click', function(eventData) {
         const pt = eventData.points[0];
+        // Ensure click happened on the clickable layer (index 0)
         if (!pt || !pt.hasOwnProperty('a') || pt.curveNumber !== 0) return;
 
         const { a, b, c } = pt;
         
-        // Normalize the values to ensure they sum exactly to 1,
+        // Normalize to ensure exact sum of 1.00
         const sum = a + b + c;
         const normA = a / sum;
         const normB = b / sum;
@@ -254,6 +256,48 @@
           `You chose → Corporate: ${normA.toFixed(2)}, Human: ${normB.toFixed(2)}, Environmental: ${normC.toFixed(2)}`;
       });
     }
+    
+    // Updates the plot with a specific A, B, C point
+    function updatePlot(type, a, b, c) {
+        const divId = `plot-${type}`;
+        const resultId = `result-${type}`;
+
+        responses[type] = { a, b, c };
+
+        Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [1]);
+
+        document.getElementById(resultId).innerText = 
+          `Your saved response → Corporate: ${a.toFixed(2)}, Human: ${b.toFixed(2)}, Environmental: ${c.toFixed(2)}`;
+    }
+
+    // Load Existing Responses
+    async function loadExistingResponses(currentUser) {
+        if (!currentUser) return;
+        showMessage("Checking for existing responses...", 'info');
+
+        try {
+            const { data, error } = await supabase
+                .from("responses")
+                .select("type, a, b, c")
+                .eq("user_id", currentUser.id);
+
+            if (error) {
+                return showMessage("Error loading previous responses: " + error.message, 'error');
+            }
+
+            if (data && data.length > 0) {
+                data.forEach(response => {
+                    updatePlot(response.type, response.a, response.b, response.c);
+                    showMessage(`Loaded your saved ${response.type} response.`, 'success');
+                });
+            } else {
+                showMessage("No previous responses found. Please make your selection.", 'info');
+            }
+        } catch (e) {
+            console.error("Load responses error:", e);
+        }
+    }
+
 
     // Initialize plots on load
     window.onload = function() {
@@ -305,6 +349,9 @@
         // 2. Control visibility of Export button and Admin Banner
         exportButton.classList.toggle("hidden", !isAdmin);
         adminBanner.classList.toggle("hidden", !isAdmin);
+
+        // 3. Load previous submissions
+        loadExistingResponses(user);
       } else {
         user = null;
         authStatus.innerText = "Not logged in";
@@ -332,7 +379,7 @@
         }
 
         if (existing && existing.length > 0) {
-          return showMessage("⚠️ You already submitted for this plot.", 'warning');
+          return showMessage("⚠️ You already submitted for this plot. One submission per plot is allowed.", 'warning');
         }
 
         // 2. Insert new response
@@ -354,26 +401,24 @@
       }
     }
 
-    // Export to CSV (Admin Only) - NOW CALLS THE SECURE SQL FUNCTION
+    // Export to CSV (Admin Only) - Includes the fix for 'undefined' created_at field
     async function exportToExcel() {
       // Secondary check to prevent non-admins from triggering export logic
       if (!user || user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase())
-        return showMessage("🛑 Only admin can export data.", 'error');
+        return showMessage("🛑 Only the admin user is authorized to export data.", 'error');
+
+      showMessage("Fetching all data for export...", 'info');
 
       try {
-        showMessage("Fetching all responses...", 'info');
-
-        // Use the Service Role key and call the secure RPC function.
+        // Use the Service Role key to bypass Row Level Security (RLS) for the export.
         const serviceSupabase = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY);
         
-        // Fetch data by calling the get_all_responses() function
-        const { data, error } = await serviceSupabase.rpc('get_all_responses');
+        const { data, error } = await serviceSupabase.from("responses").select("*");
         
-        if (error) return showMessage("Error fetching data from secure function: " + error.message, 'error');
+        if (error) return showMessage("Error fetching data: " + error.message, 'error');
         if (!data || !data.length) return showMessage("No responses found to export.", 'info');
 
         // CSV generation
-        // Note: The function returns columns named 'a', 'b', 'c', which we label here.
         const headers = ["user_id", "type", "corporate_a", "human_b", "environmental_c", "created_at"];
         const csvContent = data.map(r => [
           `"${r.user_id}"`,
@@ -381,11 +426,14 @@
           r.a, 
           r.b, 
           r.c, 
-          `"${r.created_at}"`
+          // FIX: Use an empty string if created_at is null or undefined to prevent 'undefined' text
+          `"${r.created_at || ''}"`
         ].join(",")).join("\n");
 
+        // NOTE: The CSV content generated here is clean and does NOT include the extraneous header line.
         const csv = headers.join(",") + "\n" + csvContent;
 
+        // Trigger file download
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
@@ -398,6 +446,7 @@
         showMessage(`✅ ${data.length} records exported successfully.`, 'success');
 
       } catch (e) {
+        console.error("Export Error:", e);
         showMessage("An unexpected error occurred during export.", 'error');
       }
     }
