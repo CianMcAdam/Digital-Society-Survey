@@ -1,242 +1,271 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ternary Plot Survey with Supabase Login</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ternary Plot Survey with Supabase Login</title>
 
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Plotly -->
-  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+  <!-- Plotly -->
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 
-  <!-- Supabase -->
-  <script src="https://unpkg.com/@supabase/supabase-js"></script>
+  <!-- Supabase -->
+  <script src="https://unpkg.com/@supabase/supabase-js"></script>
 
-  <style>
-    #plot-present, #plot-future {
-      width: 100%;
-      min-height: 400px;
-    }
-    #toast {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 1000;
-      padding: 14px 24px;
-      border-radius: 10px;
-      font-weight: 600;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-      display: none;
-    }
-    #toast.show {
-      display: block;
-      animation: fadeInOut 4s ease-in-out;
-    }
-    @keyframes fadeInOut {
-      0% { opacity: 0; transform: translate(-50%, -20px); }
-      10%, 90% { opacity: 1; transform: translate(-50%, 0); }
-      100% { opacity: 0; transform: translate(-50%, -20px); }
-    }
-  </style>
+  <style>
+    /* Custom CSS for responsiveness and aesthetics */
+    #plot-present, #plot-future {
+      width: 100%;
+      min-height: 400px;
+      /* Ensure plots scale gracefully on smaller screens */
+    }
+    #toast {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      padding: 14px 24px;
+      border-radius: 10px;
+      font-weight: 600;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      display: none;
+      transition: all 0.5s ease;
+    }
+    #toast.show {
+      display: block;
+      animation: fadeInOut 4s ease-in-out;
+    }
+    @keyframes fadeInOut {
+      0% { opacity: 0; transform: translate(-50%, -20px); }
+      10%, 90% { opacity: 1; transform: translate(-50%, 0); }
+      100% { opacity: 0; transform: translate(-50%, -20px); }
+    }
+  </style>
 </head>
 
-<body class="bg-gray-50 min-h-screen p-6 font-sans">
-  <!-- Toast -->
-  <div id="toast" class="bg-green-600 text-white text-center text-base sm:text-lg"></div>
+<body class="bg-gray-50 min-h-screen p-4 sm:p-6 font-sans">
+  <div id="toast" class="bg-green-600 text-white text-center text-base sm:text-lg"></div>
 
-  <div class="max-w-6xl mx-auto">
-    <header class="bg-white p-6 rounded-xl shadow-lg mb-8">
-      <h1 class="text-3xl font-extrabold text-blue-800 border-b-2 border-blue-200 pb-3 mb-3">
-        Ternary Plot Survey
-      </h1>
-      <p class="text-gray-600 mb-4">
-        Please indicate how you think society currently balances
-        <b>Corporate Rights</b>, <b>Human Rights</b>, and <b>Environmental Rights</b>,
-        and how you think it will balance them in 2075.
-        You must log in before submitting.
-      </p>
+  <div class="max-w-6xl mx-auto">
+    <header class="bg-white p-6 rounded-xl shadow-lg mb-8">
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-blue-800 border-b-2 border-blue-200 pb-3 mb-3">
+        Ternary Plot Survey
+      </h1>
+      <p class="text-gray-600 mb-4 text-sm sm:text-base">
+        Please indicate how you think society currently balances
+        <b>Corporate Rights</b>, <b>Human Rights</b>, and <b>Environmental Rights</b>,
+        and how you think it will balance them in 2075.
+        You must log in before submitting.
+      </p>
 
-      <button onclick="signIn()"
-        class="px-5 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">
-        Login with Magic Link
-      </button>
-      <p id="auth-status" class="mt-3 text-gray-700 font-semibold">Not logged in</p>
+      <button onclick="signIn()"
+        class="px-5 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition transform hover:scale-105 shadow-md">
+        Login with Magic Link
+      </button>
+      <p id="auth-status" class="mt-3 text-gray-700 font-semibold">Not logged in</p>
 
-      <div id="admin-banner" class="hidden mt-4 p-3 rounded-lg border border-green-400 bg-green-100 text-green-800 font-bold">
-        ✅ Admin Mode Active — You can export all responses.
-      </div>
+      <div id="admin-banner" class="hidden mt-4 p-3 rounded-lg border border-green-400 bg-green-100 text-green-800 font-bold">
+        ✅ Admin Mode Active — You can export all responses.
+      </div>
 
-      <button id="export-button" onclick="exportToExcel()" class="hidden mt-4 px-5 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition">
-        Export All Responses to CSV (Excel)
-      </button>
-    </header>
+      <button id="export-button" onclick="exportToExcel()" class="hidden mt-4 px-5 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition transform hover:scale-105 shadow-md">
+        Export All Responses to CSV (Excel)
+      </button>
+    </header>
 
-    <div class="grid md:grid-cols-2 gap-8">
-      <div class="bg-white p-6 rounded-xl shadow-lg">
-        <h2 class="text-xl font-semibold text-blue-800 border-b border-gray-200 pb-2 mb-4">
-          Present Day Values
-        </h2>
-        <div id="plot-present"></div>
-        <button onclick="submitResponse('present')"
-          class="w-full mt-4 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">
-          Submit Present Response
-        </button>
-        <p id="result-present" class="mt-3 text-gray-600 text-center"></p>
-      </div>
+    <div class="grid md:grid-cols-2 gap-8">
+      <div class="bg-white p-6 rounded-xl shadow-lg">
+        <h2 class="text-xl font-semibold text-blue-800 border-b border-gray-200 pb-2 mb-4">
+          Present Day Values
+        </h2>
+        <div id="plot-present"></div>
+        <button onclick="submitResponse('present')"
+          class="w-full mt-4 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition transform hover:scale-[1.01] shadow-md">
+          Submit Present Response
+        </button>
+        <p id="result-present" class="mt-3 text-gray-600 text-center"></p>
+      </div>
 
-      <div class="bg-white p-6 rounded-xl shadow-lg">
-        <h2 class="text-xl font-semibold text-blue-800 border-b border-gray-200 pb-2 mb-4">
-          Values in 2075
-        </h2>
-        <div id="plot-future"></div>
-        <button onclick="submitResponse('future')"
-          class="w-full mt-4 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">
-          Submit Future Response
-        </button>
-        <p id="result-future" class="mt-3 text-gray-600 text-center"></p>
-      </div>
-    </div>
-  </div>
+      <div class="bg-white p-6 rounded-xl shadow-lg">
+        <h2 class="text-xl font-semibold text-blue-800 border-b border-gray-200 pb-2 mb-4">
+          Values in 2075
+        </h2>
+        <div id="plot-future"></div>
+        <button onclick="submitResponse('future')"
+          class="w-full mt-4 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition transform hover:scale-[1.01] shadow-md">
+          Submit Future Response
+        </button>
+        <p id="result-future" class="mt-3 text-gray-600 text-center"></p>
+      </div>
+    </div>
+  </div>
 
-  <script>
-    // ✅ Admin setup
-    const ADMIN_EMAIL = "cian.mcadam@ucdconnect.ie";
+  <script>
+    // ✅ Admin setup
+    const ADMIN_EMAIL = "cian.mcadam@ucdconnect.ie";
 
-    // ✅ Supabase credentials
-    const supabaseUrl = "https://szcqmwsnzqdciqablixv.supabase.co";
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6Y3Ftd3NuenFkY2lxYWJsaXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkxNzg2OTMsImV4cCI6MjA3NDc1NDY5M30.LE3Qh79LqZacPRrcyvCJOZcJ9FLyADoK5r6dumoNZR0";
-    const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6Y3Ftd3NuenFkY2lxYWJsaXh2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTE3ODY5MywiZXhwIjoyMDc0NzU0NjkzfQ.rAay6ltzd5bfODomD5MtOGaa_7XYJRohffkBhUg6gys";
+    // ✅ Supabase credentials (Service Key removed for security as RPC is now used)
+    const supabaseUrl = "https://szcqmwsnzqdciqablixv.supabase.co";
+    const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6Y3Ftd3NuenFkY2lxYWJsaXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkxNzg2OTMsImV4cCI6MjA3NDc1NDY5M30.LE3Qh79LqZacPRrcyvCJOZcJ9FLzADoK5r6dumoNZR0";
 
-    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
 
-    let responses = { present: { a: 1/3, b: 1/3, c: 1/3 }, future: { a: 1/3, b: 1/3, c: 1/3 } };
-    let user = null;
+    let user = null;
+    let responses = { present: { a: 1/3, b: 1/3, c: 1/3 }, future: { a: 1/3, b: 1/3, c: 1/3 } };
 
-    // Toast
-    function showToast(message, color = "bg-green-600") {
-      const toast = document.getElementById("toast");
-      toast.textContent = message;
-      toast.className = `show text-white text-center rounded-lg px-6 py-3 ${color}`;
-      setTimeout(() => toast.classList.remove("show"), 4000);
-    }
+    function showToast(message, color = "bg-green-600") {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      // Preserve the original Tailwind classes and just add the color
+      toast.className = `show text-white text-center rounded-lg px-6 py-3 ${color}`;
+      setTimeout(() => toast.classList.remove("show"), 4000);
+    }
 
-    // Plot setup
-    function makePlot(divId, resultId, label) {
-      const initial = responses[label.toLowerCase()];
-      const userDot = {
-        type: "scatterternary", mode: "markers",
-        a: [initial.a], b: [initial.b], c: [initial.c],
-        marker: { size: 14, color: "blue" },
-        name: "Your Choice",
-      };
+    function makePlot(divId, resultId, label) {
+      const initial = responses[label.toLowerCase()];
+      const userDot = {
+        type: "scatterternary",
+        mode: "markers",
+        a: [initial.a], b: [initial.b], c: [initial.c],
+        marker: { size: 14, color: "blue" },
+      };
 
-      const grid = [];
-      for (let a = 0; a <= 1; a += 0.02) {
-        for (let b = 0; b <= 1 - a; b += 0.02) {
-          grid.push({ a, b, c: 1 - a - b });
-        }
-      }
+      const grid = [];
+      // Generate points across the triangle surface for click detection
+      for (let a = 0; a <= 1; a += 0.02) {
+        for (let b = 0; b <= 1 - a; b += 0.02) {
+          grid.push({ a, b, c: 1 - a - b });
+        }
+      }
 
-      const clickLayer = {
-        type: "scatterternary", mode: "markers",
-        a: grid.map(p => p.a), b: grid.map(p => p.b), c: grid.map(p => p.c),
-        marker: { size: 18, color: "rgba(0,0,0,0)" }, hoverinfo: "none",
-      };
+      const clickLayer = {
+        type: "scatterternary",
+        mode: "markers",
+        a: grid.map(p => p.a),
+        b: grid.map(p => p.b),
+        c: grid.map(p => p.c),
+        marker: { size: 18, color: "rgba(0,0,0,0)" }, // Invisible markers for capturing clicks
+        hoverinfo: "none",
+      };
 
-      Plotly.newPlot(divId, [clickLayer, userDot], {
-        ternary: {
-          aaxis: { title: "Corporate Rights" },
-          baxis: { title: "Human Rights" },
-          caxis: { title: "Environmental Rights" },
-        },
-        title: label,
-      });
+      Plotly.newPlot(divId, [clickLayer, userDot], {
+        ternary: {
+          aaxis: { title: "Corporate Rights" },
+          baxis: { title: "Human Rights" },
+          caxis: { title: "Environmental Rights" },
+          sum: 1 // Important: ensure axes sum to 1
+        },
+        title: label,
+        // Make plot responsive
+        responsive: true,
+      });
 
-      const type = label.toLowerCase();
-      document.getElementById(divId).on("plotly_click", (e) => {
-        const { a, b, c } = e.points[0];
-        responses[type] = { a, b, c };
-        Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [1]);
-        document.getElementById(resultId).innerText =
-          `You chose → Corporate: ${a.toFixed(2)}, Human: ${b.toFixed(2)}, Environmental: ${c.toFixed(2)}`;
-      });
-    }
+      const type = label.toLowerCase();
+      document.getElementById(divId).on("plotly_click", (e) => {
+        // Plotly returns the ternary coordinates (a, b, c) of the clicked point
+        const { a, b, c } = e.points[0];
+        responses[type] = { a, b, c };
+        // Update the position of the user's dot (which is trace index 1)
+        Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [1]);
+        document.getElementById(resultId).innerText =
+          `You chose → Corporate: ${a.toFixed(2)}, Human: ${b.toFixed(2)}, Environmental: ${c.toFixed(2)}`;
+      });
+    }
 
-    window.onload = () => {
-      makePlot("plot-present", "result-present", "Present");
-      makePlot("plot-future", "result-future", "Future");
-    };
+    window.onload = () => {
+      makePlot("plot-present", "result-present", "Present");
+      makePlot("plot-future", "result-future", "Future");
+    };
 
-    // Login with Magic Link
-    async function signIn() {
-      const email = prompt("Enter your email to receive a login link:");
-      if (!email) return;
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: window.location.href.split(/[?#]/)[0] },
-      });
-      if (error) alert("Login Error: " + error.message);
-      else alert("✅ Check your email for a magic link to log in.");
-    }
+    async function signIn() {
+      const email = prompt("Enter your email to receive a login link:");
+      if (!email) return;
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: window.location.href.split(/[?#]/)[0] },
+      });
+      // Replaced alert() with showToast()
+      if (error) showToast("Login Error: " + error.message, "bg-red-600");
+      else showToast("✅ Check your email for a magic link to log in.");
+    }
 
-    // Auth listener
-    supabase.auth.onAuthStateChange((_, session) => {
-      const status = document.getElementById("auth-status");
-      const exportBtn = document.getElementById("export-button");
-      const adminBanner = document.getElementById("admin-banner");
-      const isAdmin = session?.user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    supabase.auth.onAuthStateChange((_, session) => {
+      const status = document.getElementById("auth-status");
+      const exportBtn = document.getElementById("export-button");
+      const adminBanner = document.getElementById("admin-banner");
+      const isAdmin = session?.user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
-      if (session) {
-        user = session.user;
-        status.innerText = `✅ Logged in as: ${user.email}`;
-        exportBtn.style.display = isAdmin ? "block" : "none";
-        adminBanner.style.display = isAdmin ? "block" : "none";
-      } else {
-        user = null;
-        status.innerText = "Not logged in";
-        exportBtn.style.display = "none";
-        adminBanner.style.display = "none";
-      }
-    });
+      if (session) {
+        user = session.user;
+        status.innerText = `✅ Logged in as: ${user.email}`;
+        exportBtn.style.display = isAdmin ? "block" : "none";
+        adminBanner.style.display = isAdmin ? "block" : "none";
+      } else {
+        user = null;
+        status.innerText = "Not logged in";
+        exportBtn.style.display = "none";
+        adminBanner.style.display = "none";
+      }
+    });
 
-    // Submit response
-    async function submitResponse(type) {
-      if (!user) return alert("Please log in first.");
-      const { error } = await supabase.from("responses").insert([{
-        user_id: user.id, type,
-        a: responses[type].a, b: responses[type].b, c: responses[type].c,
-      }]);
-      if (error) alert("Error submitting: " + error.message);
-      else showToast("✅ Response saved successfully!");
-    }
+    async function submitResponse(type) {
+      // Replaced alert() with showToast()
+      if (!user) return showToast("Please log in first.", "bg-red-600");
+      
+      const { error } = await supabase.from("responses").insert([{
+        user_id: user.id, type,
+        a: responses[type].a, b: responses[type].b, c: responses[type].c,
+      }]);
+      // Replaced alert() with showToast()
+      if (error) showToast("Error submitting: " + error.message, "bg-red-600");
+      else showToast("✅ Response saved successfully!");
+    }
 
-    // Export (Admin only, uses Service Role key)
-    async function exportToExcel() {
-      if (!user || user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase())
-        return alert("🛑 Only admin can export data.");
+    // 📥 Export (Admin Only) - Now using Supabase RPC for data fetching
+    async function exportToExcel() {
+      if (!user || user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+        return showToast("🛑 Only admin can export data.", "bg-red-600");
+      }
 
-      const serviceClient = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY);
-      const { data, error } = await serviceClient.from("responses").select("*");
+      // ✅ Use the RPC function we created in Supabase SQL Editor:
+      // This fetches all responses securely, assuming your RPC function handles authentication/roles.
+      const { data, error } = await supabase.rpc("get_all_responses");
 
-      if (error) return alert("Error fetching data: " + error.message);
-      if (!data || !data.length) return alert("No responses found.");
+      if (error) {
+        return showToast("Error fetching data: " + error.message, "bg-red-600");
+      }
+      if (!data || !data.length) {
+        return showToast("No responses found.", "bg-yellow-600");
+      }
 
-      const csv = [
-        ["user_id", "type", "a", "b", "c", "created_at"],
-        ...data.map(r => [r.user_id, r.type, r.a, r.b, r.c, r.created_at]),
-      ].map(row => row.join(",")).join("\n");
+      // Convert data to CSV, including the 'id' field which is now available via the RPC
+      const csv = [
+        ["id", "user_id", "type", "a", "b", "c", "created_at"],
+        ...data.map((r) => [
+          r.id,
+          r.user_id,
+          r.type,
+          r.a,
+          r.b,
+          r.c,
+          r.created_at,
+        ]),
+      ]
+        .map((row) => row.join(","))
+        .join("\n");
 
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "responses_export.csv";
-      link.click();
+      // Download CSV
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "responses_export.csv";
+      link.click();
 
-      showToast(`✅ ${data.length} records exported successfully!`);
-    }
-  </script>
+      showToast(`✅ ${data.length} records exported successfully!`);
+    }
+  </script>
 </body>
 </html>
