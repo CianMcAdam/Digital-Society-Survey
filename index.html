@@ -96,7 +96,13 @@
     const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
     const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSI6ImlhdCI6MTc1OTQ0MTIxOCwiZXhwIjoyMDc1MDE3MjE4fQ.WT_z-BJRTfu9EqO1Fig515aYF9FUOQGOQQgJ86AjM3Q";
 
+    // Initialize the client with the Anon Key for client-side operations (like login, user-level RLS access)
     const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    // Initialize a separate client with the Service Key for admin operations (export)
+    const serviceSupabase = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY, {
+        auth: { persistSession: false }, // Don't persist session for service client
+    });
+
     let user = null;
     let responses = { present: { a: 1/3, b: 1/3, c: 1/3 }, future: { a: 1/3, b: 1/3, c: 1/3 } };
 
@@ -170,6 +176,9 @@
         authStatus.className = `px-4 py-2 text-sm font-semibold rounded-lg shadow-inner ${isAdmin ? 'bg-green-200 text-green-800' : 'bg-warning-yellow text-gray-900'}`;
         exportButton.classList.toggle("hidden", !isAdmin);
         adminBanner.classList.toggle("hidden", !isAdmin);
+        
+        // --- Fetch user's previous responses after successful login ---
+        fetchUserResponses();
       } else {
         user = null;
         authStatus.innerText = "Not logged in";
@@ -179,27 +188,84 @@
       }
     });
 
+    // --- Fetch and display existing responses (if any) ---
+    async function fetchUserResponses() {
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from(RESPONSES_TABLE)
+        .select("type, a, b, c")
+        .eq("user_id", user.id);
+        
+      if (error) {
+        // Only show a message if it's not the "Policy forbids access" error (which is normal if table is empty/new)
+        if (!error.message.includes("Policy forbids access")) {
+             showMessage("Error fetching past responses: " + error.message, "error");
+        }
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        data.forEach(response => {
+          const type = response.type.toLowerCase();
+          if (responses.hasOwnProperty(type)) {
+            responses[type] = { a: response.a, b: response.b, c: response.c };
+            
+            // Update the plot and result text to show saved data
+            const plotDivId = `plot-${type}`;
+            const resultId = `result-${type}`;
+            
+            // Restyle the plot with the fetched point
+            Plotly.restyle(plotDivId, { a: [[response.a]], b: [[response.b]], c: [[response.c]] }, [1]);
+            document.getElementById(resultId).innerText = `You submitted → Corporate: ${response.a.toFixed(2)}, Human: ${response.b.toFixed(2)}, Environmental: ${response.c.toFixed(2)}`;
+            
+            // Disable the button to prevent re-submission
+            const button = document.querySelector(`[onclick="submitResponse('${type}')"]`);
+            if (button) {
+              button.disabled = true;
+              button.textContent = `Submitted (${type === 'present' ? 'Present' : 'Future'})`;
+              button.classList.remove('bg-primary-blue', 'hover:bg-primary-hover');
+              button.classList.add('bg-gray-400', 'cursor-not-allowed');
+            }
+            showMessage(`Loaded previous ${type} response.`, "info");
+          }
+        });
+      }
+    }
+
+
     // --- Submit response (Now targets the new table: responses_v2) ---
     async function submitResponse(type) {
       if (!user) return showMessage("Please log in first.", "warning");
 
-      // 1. Check for existing response in the new table
+      // Check if the button is already disabled (meaning already submitted)
+      const button = document.querySelector(`[onclick="submitResponse('${type}')"]`);
+      if (button && button.disabled) {
+        return showMessage("⚠️ You already submitted for this plot.", "warning");
+      }
+
+      // 1. Check for existing response in the new table (Redundant check, but good for safety)
       const { data: existing, error: checkError } = await supabase
-        .from(RESPONSES_TABLE) // <-- Using the new table
+        .from(RESPONSES_TABLE)
         .select("id")
         .eq("user_id", user.id)
         .eq("type", type);
       
       if (checkError) {
-        return showMessage("Error checking for previous response: " + checkError.message, "error");
+        // A common error here is RLS blocking SELECT, but INSERT might still work. 
+        // We log the error but proceed to INSERT unless it's a definitive policy block.
+        console.error("SELECT Check Error:", checkError.message);
+        // We will NOT show an error message here, we'll let the INSERT fail if necessary.
       }
 
       if (existing && existing.length > 0) {
+        // If the SELECT worked, and they submitted, show warning and update UI
+        fetchUserResponses(); 
         return showMessage("⚠️ You already submitted for this plot.", "warning");
       }
 
       // 2. Insert new response into the new table
-      const { error: insertError } = await supabase.from(RESPONSES_TABLE).insert([{ // <-- Using the new table
+      const { error: insertError } = await supabase.from(RESPONSES_TABLE).insert([{
         user_id: user.id,
         type,
         a: responses[type].a,
@@ -207,27 +273,57 @@
         c: responses[type].c
       }]);
 
-      if (insertError) showMessage("Error submitting: " + insertError.message, "error");
-      else showMessage("✅ Response saved successfully to " + RESPONSES_TABLE + "!", "success");
+      if (insertError) {
+        showMessage("Error submitting: " + insertError.message, "error");
+      } else {
+        showMessage("✅ Response saved successfully to " + RESPONSES_TABLE + "!", "success");
+        // Disable button after successful insert
+        if (button) {
+            button.disabled = true;
+            button.textContent = `Submitted (${type === 'present' ? 'Present' : 'Future'})`;
+            button.classList.remove('bg-primary-blue', 'hover:bg-primary-hover');
+            button.classList.add('bg-gray-400', 'cursor-not-allowed');
+        }
+      }
     }
 
-    // --- Admin export (Now targets the new table: responses_v2) ---
+    // --- Admin export (Now targets the new table: responses_v2, using serviceSupabase) ---
     async function exportToExcel() {
       if (!user || user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase())
         return showMessage("🛑 Only admin can export data.", "error");
+      
+      showMessage("Fetching all responses...", "info");
 
-      const serviceSupabase = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY);
-      // Fetching from the new table
-      const { data, error } = await serviceSupabase.from(RESPONSES_TABLE).select("*");
+      // Use the serviceSupabase client to bypass RLS and fetch all data
+      const { data, error } = await serviceSupabase
+        .from(RESPONSES_TABLE)
+        .select("user_id, type, a, b, c, created_at")
+        .order('created_at', { ascending: true }); // Order by created_at for better data review
 
-      if (error) return showMessage("Error fetching data: " + error.message, "error");
-      if (!data.length) return showMessage("No responses found in " + RESPONSES_TABLE + ".", "info");
+      if (error) {
+        return showMessage("Error fetching data: " + error.message, "error");
+      }
+      if (!data || !data.length) {
+        return showMessage("No responses found in " + RESPONSES_TABLE + ".", "info");
+      }
 
-      const headers = ["user_id", "type", "corporate_a", "human_b", "environmental_c"];
-      const csv = [headers.join(","), ...data.map(r => [
-        `"${r.user_id}"`, r.type, r.a, r.b, r.c
-      ].join(","))].join("\n");
+      // Create CSV content
+      // NOTE: Using a, b, c column names for compatibility with the Python analysis script's column mapping
+      const headers = ["user_id", "type", "a", "b", "c", "created_at"];
+      
+      // Map data rows to CSV string
+      const csvData = data.map(r => [
+        `"${r.user_id}"`, 
+        r.type, 
+        r.a, 
+        r.b, 
+        r.c,
+        r.created_at
+      ].join(",")).join("\n");
+      
+      const csv = [headers.join(","), csvData].join("\n"); // Combine header and data
 
+      // Download logic
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
@@ -240,6 +336,19 @@
     window.signIn = signIn;
     window.submitResponse = submitResponse;
     window.exportToExcel = exportToExcel;
+    
+    // Initial fetch on page load if user is already logged in from a previous session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        // Trigger the state change manually to update the UI and fetch data
+        supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'INITIAL_SESSION') {
+                // If there's a session, the onAuthStateChange listener handles user setup and fetchUserResponses
+            }
+        });
+      }
+    });
+
   </script>
 </body>
 </html>
