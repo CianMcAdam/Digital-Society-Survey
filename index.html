@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ternary Plot Survey with Supabase Login</title>
+  <title>Ternary Plot Survey V2</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
   <script src="https://unpkg.com/@supabase/supabase-js"></script>
 
   <style>
+    /* Styling for plot containers for responsiveness */
     #plot-present, #plot-future {
       width: 100%;
       min-height: 400px;
@@ -33,17 +34,18 @@
 </head>
 
 <body class="bg-gray-50 min-h-screen p-4 md:p-8 font-sans">
+  <!-- Global Message Box -->
   <div id="message-box" class="fixed top-4 right-6 z-[100] max-w-sm sm:max-w-md lg:max-w-lg"></div>
 
   <div class="max-w-6xl mx-auto">
     <header class="mb-8 p-6 bg-white rounded-xl shadow-lg">
       <h1 class="text-3xl font-extrabold text-primary-blue border-b-2 border-indigo-200 pb-3 mb-2">
-        Ternary Plot Survey
+        Ternary Plot Survey V2
       </h1>
       <p class="text-gray-600 mb-4">
-        This survey features two ternary plots. Please place a point to indicate how you think society
+        This survey now uses a **new database table** to ensure all users can submit one fresh response per plot.
+        <br>Please place a point to indicate how you think society
         <b class="text-indigo-700">currently balances</b> Corporate, Human, and Environmental Rights — and how it might balance them in <b>2075</b>.
-        You must log in before submitting.
       </p>
 
       <div class="flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0">
@@ -55,8 +57,9 @@
         </p>
       </div>
 
+      <!-- Admin Controls -->
       <div id="admin-banner" class="hidden mt-4 p-3 rounded-lg border border-green-400 bg-green-100 text-green-800 font-bold">
-        ✅ Admin Mode Active — You can export all responses.
+        ✅ Admin Mode Active — You can export all responses from **responses_v2**.
       </div>
 
       <button id="export-button" onclick="exportToExcel()" class="hidden mt-4 px-5 py-2 bg-success-green text-white font-semibold rounded-lg hover:bg-green-700 transition duration-150 shadow-lg">
@@ -86,6 +89,17 @@
   </div>
 
   <script>
+    // === Supabase Configuration (CHANGE THIS TO YOUR NEW TABLE NAME) ===
+    const RESPONSES_TABLE = "responses_v2"; // <-- NEW TABLE NAME
+    const ADMIN_EMAIL = "cian.mcadam@ucdconnect.ie";
+    const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
+    const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSI6ImlhdCI6MTc1OTQ0MTIxOCwiZXhwIjoyMDc1MDE3MjE4fQ.WT_z-BJRTfu9EqO1Fig515aYF9FUOQGOQQgJ86AjM3Q";
+
+    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    let user = null;
+    let responses = { present: { a: 1/3, b: 1/3, c: 1/3 }, future: { a: 1/3, b: 1/3, c: 1/3 } };
+
     // --- Utility for showing messages ---
     function showMessage(text, type = 'info') {
       const box = document.createElement('div');
@@ -104,32 +118,28 @@
       setTimeout(() => { box.style.opacity = 0; box.style.transform = 'translateY(100px)'; setTimeout(() => box.remove(), 500); }, 5000);
     }
 
-    const ADMIN_EMAIL = "cian.mcadam@ucdconnect.ie";
-    const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
-    const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTQ0MTIxOCwiZXhwIjoyMDc1MDE3MjE4fQ.WT_z-BJRTfu9EqO1Fig515aYF9FUOQGOQQgJ86AjM3Q";
-
-    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
-    let user = null;
-    let responses = { present: { a: 1/3, b: 1/3, c: 1/3 }, future: { a: 1/3, b: 1/3, c: 1/3 } };
-
+    // --- Plotting logic (Unchanged) ---
     function makePlot(divId, resultId, label) {
       const type = label.toLowerCase();
       const initial = responses[type];
       const userDot = { type: 'scatterternary', mode: 'markers', a: [initial.a], b: [initial.b], c: [initial.c], marker: { size: 16, color: 'blue' } };
+      // Grid points for clickable area (high-density to cover the plot)
       const grid = [];
       for (let a = 0; a <= 1; a += 0.02)
         for (let b = 0; b <= 1 - a; b += 0.02)
           grid.push({ a, b, c: 1 - a - b });
       const clickLayer = { type: 'scatterternary', mode: 'markers', a: grid.map(p => p.a), b: grid.map(p => p.b), c: grid.map(p => p.c), marker: { size: 18, color: 'rgba(0,0,0,0)' }, hoverinfo: 'none' };
+      
       Plotly.newPlot(divId, [clickLayer, userDot], {
         ternary: { aaxis: { title: "Corporate Rights" }, baxis: { title: "Human Rights" }, caxis: { title: "Environmental Rights" } },
         title: label, autosize: true
       });
+
       document.getElementById(divId).on('plotly_click', e => {
         const { a, b, c } = e.points[0];
         responses[type] = { a, b, c };
-        Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [1]);
+        // Update the marker position (index 1 is the userDot trace)
+        Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [1]); 
         document.getElementById(resultId).innerText = `You chose → Corporate: ${a.toFixed(2)}, Human: ${b.toFixed(2)}, Environmental: ${c.toFixed(2)}`;
       });
     }
@@ -169,21 +179,27 @@
       }
     });
 
-    // --- Submit response (one per user per plot) ---
+    // --- Submit response (Now targets the new table: responses_v2) ---
     async function submitResponse(type) {
       if (!user) return showMessage("Please log in first.", "warning");
 
-      const { data: existing } = await supabase
-        .from("responses")
+      // 1. Check for existing response in the new table
+      const { data: existing, error: checkError } = await supabase
+        .from(RESPONSES_TABLE) // <-- Using the new table
         .select("id")
         .eq("user_id", user.id)
         .eq("type", type);
+      
+      if (checkError) {
+        return showMessage("Error checking for previous response: " + checkError.message, "error");
+      }
 
       if (existing && existing.length > 0) {
         return showMessage("⚠️ You already submitted for this plot.", "warning");
       }
 
-      const { error } = await supabase.from("responses").insert([{
+      // 2. Insert new response into the new table
+      const { error: insertError } = await supabase.from(RESPONSES_TABLE).insert([{ // <-- Using the new table
         user_id: user.id,
         type,
         a: responses[type].a,
@@ -191,20 +207,21 @@
         c: responses[type].c
       }]);
 
-      if (error) showMessage("Error submitting: " + error.message, "error");
-      else showMessage("✅ Response saved successfully!", "success");
+      if (insertError) showMessage("Error submitting: " + insertError.message, "error");
+      else showMessage("✅ Response saved successfully to " + RESPONSES_TABLE + "!", "success");
     }
 
-    // --- Admin export (no 'created_at' column) ---
+    // --- Admin export (Now targets the new table: responses_v2) ---
     async function exportToExcel() {
       if (!user || user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase())
         return showMessage("🛑 Only admin can export data.", "error");
 
       const serviceSupabase = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY);
-      const { data, error } = await serviceSupabase.from("responses").select("*");
+      // Fetching from the new table
+      const { data, error } = await serviceSupabase.from(RESPONSES_TABLE).select("*");
 
       if (error) return showMessage("Error fetching data: " + error.message, "error");
-      if (!data.length) return showMessage("No responses found.", "info");
+      if (!data.length) return showMessage("No responses found in " + RESPONSES_TABLE + ".", "info");
 
       const headers = ["user_id", "type", "corporate_a", "human_b", "environmental_c"];
       const csv = [headers.join(","), ...data.map(r => [
@@ -214,10 +231,10 @@
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = "responses_export.csv";
+      link.download = RESPONSES_TABLE + "_export.csv";
       link.click();
 
-      showMessage(`✅ ${data.length} records exported successfully!`, "success");
+      showMessage(`✅ ${data.length} records exported successfully from ${RESPONSES_TABLE}!`, "success");
     }
 
     window.signIn = signIn;
