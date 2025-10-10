@@ -94,7 +94,7 @@
     const ADMIN_EMAIL = "cian.mcadam@ucdconnect.ie";
     const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
     const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
-    const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSI6ImlhdCI6MTc1OTQ0MTIxOCwiZXhwIjoyMDc1MDE3MjE4fQ.WT_z-BJRTfu9EqO1Fig515aYF9FUOQGOQQgJ86AjM3Q";
+    const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSI6ImlhdCI6MTc1OTQ0MTIxOCwiZXhwIjoyMDc1MDE3MjE4fQ.WT_z-BJRTfu9EqOQGOQQgJ86AjM3Q";
 
     // Initialize the client with the Anon Key for client-side operations (like login, user-level RLS access)
     const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
@@ -193,19 +193,20 @@
       if (!user) return;
       
       try {
+        // This SELECT checks for previous submissions and disables buttons if found.
         const { data, error } = await supabase
           .from(RESPONSES_TABLE)
           .select("type, a, b, c")
           .eq("user_id", user.id);
           
         if (error) {
-          // Check for the specific RLS-related errors that indicate policy blocks
           const policyErrors = ["Policy forbids access", "cannot find table in schema cache"];
           if (!policyErrors.some(err => error.message.includes(err))) {
               showMessage("Error fetching past responses: " + error.message, "error");
           } else {
-              // Log the expected RLS/schema error, but don't show it to the user
-              console.warn(`Initial SELECT failed (Expected for RLS setup/Schema cache): ${error.message}`);
+              // Log the expected RLS/schema error, but don't show it to the user.
+              // This SELECT should work once RLS Policy #2 is applied (see above SQL).
+              console.warn(`Initial SELECT failed (RLS/Schema check needed): ${error.message}`);
           }
           return;
         }
@@ -216,15 +217,12 @@
             if (responses.hasOwnProperty(type)) {
               responses[type] = { a: response.a, b: response.b, c: response.c };
               
-              // Update the plot and result text to show saved data
               const plotDivId = `plot-${type}`;
               const resultId = `result-${type}`;
               
-              // Restyle the plot with the fetched point
               Plotly.restyle(plotDivId, { a: [[response.a]], b: [[response.b]], c: [[response.c]] }, [1]);
               document.getElementById(resultId).innerText = `You submitted → Corporate: ${response.a.toFixed(2)}, Human: ${response.b.toFixed(2)}, Environmental: ${response.c.toFixed(2)}`;
               
-              // Disable the button to prevent re-submission
               const button = document.querySelector(`[onclick="submitResponse('${type}')"]`);
               if (button) {
                 button.disabled = true;
@@ -237,8 +235,6 @@
           });
         }
       } catch (e) {
-        // Catch any uncaught network/syntax errors, but specifically ignore the schema cache issue 
-        // if the fetch call itself throws an error.
         if (e.message.includes("schema cache")) {
             console.warn(`Uncaught error during initial fetch (Schema cache issue): ${e.message}`);
         } else {
@@ -248,37 +244,17 @@
     }
 
 
-    // --- Submit response (Now targets the new table: responses_v2) ---
+    // --- Submit response (Now simplified to only INSERT, relying on DB unique constraint) ---
     async function submitResponse(type) {
       if (!user) return showMessage("Please log in first.", "warning");
 
-      // Check if the button is already disabled (meaning already submitted)
       const button = document.querySelector(`[onclick="submitResponse('${type}')"]`);
       if (button && button.disabled) {
         return showMessage("⚠️ You already submitted for this plot.", "warning");
       }
 
-      // 1. Check for existing response in the new table (Redundant check, but good for safety)
-      // This is the check that will fail if RLS is fully blocking or schema is not visible.
-      // We will proceed to INSERT, as the INSERT policy only requires the user to be authenticated.
-      const { data: existing, error: checkError } = await supabase
-        .from(RESPONSES_TABLE)
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("type", type);
-      
-      if (checkError) {
-        // Log the error but proceed to INSERT unless it's a definitive policy block.
-        console.error("SELECT Check Error during submission prep:", checkError.message);
-      }
-
-      if (existing && existing.length > 0) {
-        // If the SELECT worked, and they submitted, show warning and update UI
-        fetchUserResponses(); 
-        return showMessage("⚠️ You already submitted for this plot.", "warning");
-      }
-
-      // 2. Insert new response into the new table
+      // We rely on the Supabase unique constraint (user_id, type) to prevent duplicates.
+      // This avoids a redundant client-side SELECT that was causing the schema cache error.
       const { error: insertError } = await supabase.from(RESPONSES_TABLE).insert([{
         user_id: user.id,
         type,
@@ -288,8 +264,14 @@
       }]);
 
       if (insertError) {
-        // If the INSERT fails, it is usually a definitive RLS or unique constraint error.
-        showMessage("Error submitting: " + insertError.message, "error");
+        // Check for duplicate submission error (code 23505 is PostgreSQL unique violation)
+        if (insertError.code === '23505') {
+            showMessage("⚠️ You have already submitted a response for this category. Only one submission allowed.", "warning");
+        } else {
+            // General insert error (e.g., RLS policy violation on INSERT)
+            showMessage("Error submitting: " + insertError.message, "error");
+        }
+        
       } else {
         showMessage("✅ Response saved successfully to " + RESPONSES_TABLE + "!", "success");
         // Disable button after successful insert
@@ -300,6 +282,9 @@
             button.classList.add('bg-gray-400', 'cursor-not-allowed');
         }
       }
+      
+      // Re-fetch user responses to ensure UI state is correct, even if submission failed due to duplicate
+      fetchUserResponses();
     }
 
     // --- Admin export (Now targets the new table: responses_v2, using serviceSupabase) ---
