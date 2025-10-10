@@ -43,8 +43,7 @@
         Ternary Plot Survey V2
       </h1>
       <p class="text-gray-600 mb-4">
-        This survey now uses a **new database table** to ensure all users can submit one fresh response per plot.
-        <br>Please place a point to indicate how you think society
+        Please place a point to indicate how you think society
         <b class="text-indigo-700">currently balances</b> Corporate, Human, and Environmental Rights — and how it might balance them in <b>2075</b>.
       </p>
 
@@ -59,7 +58,7 @@
 
       <!-- Admin Controls -->
       <div id="admin-banner" class="hidden mt-4 p-3 rounded-lg border border-green-400 bg-green-100 text-green-800 font-bold">
-        ✅ Admin Mode Active — You can export all responses from **responses_v2**.
+        ✅ Admin Mode Active
       </div>
 
       <button id="export-button" onclick="exportToExcel()" class="hidden mt-4 px-5 py-2 bg-success-green text-white font-semibold rounded-lg hover:bg-green-700 transition duration-150 shadow-lg">
@@ -71,7 +70,7 @@
       <div class="bg-white p-6 rounded-xl shadow-xl">
         <h2 class="text-2xl font-semibold text-primary-blue border-b border-indigo-200 pb-3 mb-4">Present Day Values</h2>
         <div id="plot-present" class="w-full h-[450px] md:h-[550px]"></div>
-        <button onclick="submitResponse('present')" class="w-full mt-6 px-4 py-2 bg-primary-blue text-white font-semibold rounded-lg hover:bg-primary-hover transition duration-150 shadow-md">
+        <button id="submit-present" onclick="submitResponse('present')" class="w-full mt-6 px-4 py-2 bg-primary-blue text-white font-semibold rounded-lg hover:bg-primary-hover transition duration-150 shadow-md">
           Submit Present Response
         </button>
         <p id="result-present" class="mt-3 text-sm text-gray-600 text-center"></p>
@@ -80,7 +79,7 @@
       <div class="bg-white p-6 rounded-xl shadow-xl">
         <h2 class="text-2xl font-semibold text-primary-blue border-b border-indigo-200 pb-3 mb-4">Values in 2075</h2>
         <div id="plot-future" class="w-full h-[450px] md:h-[550px]"></div>
-        <button onclick="submitResponse('future')" class="w-full mt-6 px-4 py-2 bg-primary-blue text-white font-semibold rounded-lg hover:bg-primary-hover transition duration-150 shadow-md">
+        <button id="submit-future" onclick="submitResponse('future')" class="w-full mt-6 px-4 py-2 bg-primary-blue text-white font-semibold rounded-lg hover:bg-primary-hover transition duration-150 shadow-md">
           Submit Future Response
         </button>
         <p id="result-future" class="mt-3 text-sm text-gray-600 text-center"></p>
@@ -89,18 +88,18 @@
   </div>
 
   <script>
-    // === Supabase Configuration (CHANGE THIS TO YOUR NEW TABLE NAME) ===
-    const RESPONSES_TABLE = "responses_v2"; // <-- NEW TABLE NAME
+    // === Supabase Configuration ===
+    const RESPONSES_TABLE = "responses_v2";
     const ADMIN_EMAIL = "cian.mcadam@ucdconnect.ie";
     const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
-    const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSI6ImlhdCI6MTc1OTQ0MTIxOCwiZXhwIjoyMDc1MDE3MjE4fQ.WT_z-BJRTfu9EqOQGOQQgJ86AjM3Q";
+    // *** Updated with fresh 'anon public' key ***
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6Y3Ftd3NuenFkY2lxYWJsaXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkxNzg2OTMsImV4cCI6MjA3NDc1NDY5M30.LE3Qh79LqZacPRrcyvCJOZcJ9FLyADoK5r6dumoNZR0";
+    // *** Updated with fresh 'service_role' key ***
+    const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6Y3Ftd3NuenFkY2lxYWFsaXh2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTE3ODY5MywiZXhwIjoyMDc0NzU0NjkzfQ.rAay6ltzd5bfODomD5MtOGaa_7XYJRohffkBhUg6gys";
 
-    // Initialize the client with the Anon Key for client-side operations (like login, user-level RLS access)
     const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
-    // Initialize a separate client with the Service Key for admin operations (export)
     const serviceSupabase = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY, {
-        auth: { persistSession: false }, // Don't persist session for service client
+        auth: { persistSession: false },
     });
 
     let user = null;
@@ -124,12 +123,12 @@
       setTimeout(() => { box.style.opacity = 0; box.style.transform = 'translateY(100px)'; setTimeout(() => box.remove(), 500); }, 5000);
     }
 
-    // --- Plotting logic (Unchanged) ---
+    // --- Plotting logic ---
     function makePlot(divId, resultId, label) {
       const type = label.toLowerCase();
       const initial = responses[type];
       const userDot = { type: 'scatterternary', mode: 'markers', a: [initial.a], b: [initial.b], c: [initial.c], marker: { size: 16, color: 'blue' } };
-      // Grid points for clickable area (high-density to cover the plot)
+      
       const grid = [];
       for (let a = 0; a <= 1; a += 0.02)
         for (let b = 0; b <= 1 - a; b += 0.02)
@@ -137,14 +136,17 @@
       const clickLayer = { type: 'scatterternary', mode: 'markers', a: grid.map(p => p.a), b: grid.map(p => p.b), c: grid.map(p => p.c), marker: { size: 18, color: 'rgba(0,0,0,0)' }, hoverinfo: 'none' };
       
       Plotly.newPlot(divId, [clickLayer, userDot], {
-        ternary: { aaxis: { title: "Corporate Rights" }, baxis: { title: "Human Rights" }, caxis: { title: "Environmental Rights" } },
+        ternary: { 
+            aaxis: { title: "Corporate Rights", tickangle: 0 }, 
+            baxis: { title: "Human Rights", tickangle: 60 }, 
+            caxis: { title: "Environmental Rights", tickangle: -60 } 
+        },
         title: label, autosize: true
       });
 
       document.getElementById(divId).on('plotly_click', e => {
         const { a, b, c } = e.points[0];
         responses[type] = { a, b, c };
-        // Update the marker position (index 1 is the userDot trace)
         Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [1]); 
         document.getElementById(resultId).innerText = `You chose → Corporate: ${a.toFixed(2)}, Human: ${b.toFixed(2)}, Environmental: ${c.toFixed(2)}`;
       });
@@ -153,61 +155,82 @@
     window.onload = () => {
       makePlot("plot-present", "result-present", "Present");
       makePlot("plot-future", "result-future", "Future");
+      // Check auth state immediately to fetch data if user is already logged in
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+            // Manually call the handler to process the existing session
+            handleAuthStateChange(session.user);
+        }
+      });
     };
 
+    // --- Authentication ---
     async function signIn() {
       const email = prompt("Enter your email to receive a login link:");
       if (!email) return;
+      // Note: emailRedirectTo helps ensure the session token is handled correctly on return
       const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href.split(/[?#]/)[0] } });
       if (error) showMessage("Login Error: " + error.message, "error");
-      else showMessage("✅ Check your email for a magic link.", "success");
+      else showMessage("✅ Check your email for a magic link. You may need to refresh after clicking the link.", "success");
+    }
+    
+    // --- Helper to update UI after login/logout
+    function handleAuthStateChange(sessionUser) {
+        const authStatus = document.getElementById("auth-status");
+        const exportButton = document.getElementById("export-button");
+        const adminBanner = document.getElementById("admin-banner");
+        
+        if (sessionUser) {
+            user = sessionUser;
+            const isAdmin = user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+            authStatus.innerText = `✅ Logged in as: ${user.email} ${isAdmin ? "(Admin)" : ""}`;
+            authStatus.className = `px-4 py-2 text-sm font-semibold rounded-lg shadow-inner ${isAdmin ? 'bg-green-200 text-green-800' : 'bg-warning-yellow text-gray-900'}`;
+            exportButton.classList.toggle("hidden", !isAdmin);
+            adminBanner.classList.toggle("hidden", !isAdmin);
+            
+            fetchUserResponses();
+        } else {
+            user = null;
+            authStatus.innerText = "Not logged in";
+            authStatus.className = "px-4 py-2 text-sm font-semibold rounded-lg shadow-inner bg-gray-200 text-gray-700";
+            exportButton.classList.add("hidden");
+            adminBanner.classList.add("hidden");
+        }
     }
 
-    // --- Detect login state ---
-    supabase.auth.onAuthStateChange(async (_, session) => {
-      const authStatus = document.getElementById("auth-status");
-      const exportButton = document.getElementById("export-button");
-      const adminBanner = document.getElementById("admin-banner");
-
-      if (session?.user) {
-        user = session.user;
-        const isAdmin = user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-        authStatus.innerText = `✅ Logged in as: ${user.email} ${isAdmin ? "(Admin)" : ""}`;
-        authStatus.className = `px-4 py-2 text-sm font-semibold rounded-lg shadow-inner ${isAdmin ? 'bg-green-200 text-green-800' : 'bg-warning-yellow text-gray-900'}`;
-        exportButton.classList.toggle("hidden", !isAdmin);
-        adminBanner.classList.toggle("hidden", !isAdmin);
-        
-        // --- Fetch user's previous responses after successful login ---
-        fetchUserResponses();
-      } else {
-        user = null;
-        authStatus.innerText = "Not logged in";
-        authStatus.className = "px-4 py-2 text-sm font-semibold rounded-lg shadow-inner bg-gray-200 text-gray-700";
-        exportButton.classList.add("hidden");
-        adminBanner.classList.add("hidden");
-      }
+    // Listener for auth state changes (e.g., after magic link click)
+    supabase.auth.onAuthStateChange((event, session) => {
+        if (session?.user) {
+            handleAuthStateChange(session.user);
+        } else if (event === 'SIGNED_OUT') {
+            handleAuthStateChange(null);
+        }
     });
-
+    
     // --- Fetch and display existing responses (if any) ---
     async function fetchUserResponses() {
       if (!user) return;
       
+      // Reset button states before fetching
+      ['present', 'future'].forEach(type => {
+          const button = document.getElementById(`submit-${type}`);
+          button.disabled = false;
+          button.textContent = `Submit ${type === 'present' ? 'Present' : 'Future'} Response`;
+          button.classList.add('bg-primary-blue', 'hover:bg-primary-hover');
+          button.classList.remove('bg-gray-400', 'cursor-not-allowed');
+      });
+
       try {
-        // This SELECT checks for previous submissions and disables buttons if found.
+        // This SELECT is allowed by the RLS Policy #2 (Users can select their own responses)
         const { data, error } = await supabase
           .from(RESPONSES_TABLE)
           .select("type, a, b, c")
           .eq("user_id", user.id);
           
         if (error) {
-          const policyErrors = ["Policy forbids access", "cannot find table in schema cache"];
-          if (!policyErrors.some(err => error.message.includes(err))) {
-              showMessage("Error fetching past responses: " + error.message, "error");
-          } else {
-              // Log the expected RLS/schema error, but don't show it to the user.
-              // This SELECT should work once RLS Policy #2 is applied (see above SQL).
-              console.warn(`Initial SELECT failed (RLS/Schema check needed): ${error.message}`);
-          }
+          // If the schema cache error was not fully fixed, it might still pop up here.
+          showMessage(`Error fetching past responses. Error: ${error.message}`, "error");
+          console.error(`Error during fetchUserResponses: ${error.message}`);
           return;
         }
         
@@ -219,42 +242,41 @@
               
               const plotDivId = `plot-${type}`;
               const resultId = `result-${type}`;
-              
+              const buttonId = `submit-${type}`;
+
+              // 1. Update Plot
               Plotly.restyle(plotDivId, { a: [[response.a]], b: [[response.b]], c: [[response.c]] }, [1]);
+              
+              // 2. Update Result Text
               document.getElementById(resultId).innerText = `You submitted → Corporate: ${response.a.toFixed(2)}, Human: ${response.b.toFixed(2)}, Environmental: ${response.c.toFixed(2)}`;
               
-              const button = document.querySelector(`[onclick="submitResponse('${type}')"]`);
+              // 3. Disable Button
+              const button = document.getElementById(buttonId);
               if (button) {
                 button.disabled = true;
                 button.textContent = `Submitted (${type === 'present' ? 'Present' : 'Future'})`;
                 button.classList.remove('bg-primary-blue', 'hover:bg-primary-hover');
                 button.classList.add('bg-gray-400', 'cursor-not-allowed');
               }
-              showMessage(`Loaded previous ${type} response.`, "info");
             }
           });
         }
       } catch (e) {
-        if (e.message.includes("schema cache")) {
-            console.warn(`Uncaught error during initial fetch (Schema cache issue): ${e.message}`);
-        } else {
-            showMessage("An unexpected error occurred during data load: " + e.message, "error");
-        }
+        console.error("Uncaught error during fetchUserResponses:", e.message);
+        showMessage("An unexpected error occurred during data load.", "error");
       }
     }
 
 
-    // --- Submit response (Now simplified to only INSERT, relying on DB unique constraint) ---
+    // --- Submit response (Relies on DB unique constraint to prevent duplicates) ---
     async function submitResponse(type) {
       if (!user) return showMessage("Please log in first.", "warning");
 
-      const button = document.querySelector(`[onclick="submitResponse('${type}')"]`);
+      const button = document.getElementById(`submit-${type}`);
       if (button && button.disabled) {
         return showMessage("⚠️ You already submitted for this plot.", "warning");
       }
 
-      // We rely on the Supabase unique constraint (user_id, type) to prevent duplicates.
-      // This avoids a redundant client-side SELECT that was causing the schema cache error.
       const { error: insertError } = await supabase.from(RESPONSES_TABLE).insert([{
         user_id: user.id,
         type,
@@ -264,54 +286,44 @@
       }]);
 
       if (insertError) {
-        // Check for duplicate submission error (code 23505 is PostgreSQL unique violation)
-        if (insertError.code === '23505') {
-            showMessage("⚠️ You have already submitted a response for this category. Only one submission allowed.", "warning");
+        if (insertError.code === '23505') { // PostgreSQL unique violation code
+            showMessage("⚠️ Submission failed: You have already submitted for this plot type.", "warning");
         } else {
-            // General insert error (e.g., RLS policy violation on INSERT)
+            // This catches RLS errors if the user_id somehow doesn't match the auth.uid()
             showMessage("Error submitting: " + insertError.message, "error");
         }
-        
       } else {
-        showMessage("✅ Response saved successfully to " + RESPONSES_TABLE + "!", "success");
-        // Disable button after successful insert
-        if (button) {
-            button.disabled = true;
-            button.textContent = `Submitted (${type === 'present' ? 'Present' : 'Future'})`;
-            button.classList.remove('bg-primary-blue', 'hover:bg-primary-hover');
-            button.classList.add('bg-gray-400', 'cursor-not-allowed');
-        }
+        showMessage("✅ Response saved successfully! Reloading status.", "success");
       }
       
-      // Re-fetch user responses to ensure UI state is correct, even if submission failed due to duplicate
+      // Update button state based on the outcome of the insert.
       fetchUserResponses();
     }
 
-    // --- Admin export (Now targets the new table: responses_v2, using serviceSupabase) ---
+    // --- Admin export (Uses serviceSupabase to bypass RLS) ---
     async function exportToExcel() {
       if (!user || user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase())
         return showMessage("🛑 Only admin can export data.", "error");
       
       showMessage("Fetching all responses...", "info");
 
-      // Use the serviceSupabase client to bypass RLS and fetch all data
+      // Use the serviceSupabase client and key to bypass RLS
       const { data, error } = await serviceSupabase
         .from(RESPONSES_TABLE)
         .select("user_id, type, a, b, c, created_at")
-        .order('created_at', { ascending: true }); // Order by created_at for better data review
+        .order('created_at', { ascending: true });
 
       if (error) {
-        return showMessage("Error fetching data: " + error.message, "error");
+        // This often happens if the service key is wrong or the table doesn't exist.
+        return showMessage("Error fetching data for admin export: " + error.message, "error");
       }
       if (!data || !data.length) {
-        return showMessage("No responses found in " + RESPONSES_TABLE + ".", "info");
+        return showMessage("No responses found to export.", "info");
       }
 
       // Create CSV content
-      // NOTE: Using a, b, c column names for compatibility with the Python analysis script's column mapping
       const headers = ["user_id", "type", "a", "b", "c", "created_at"];
       
-      // Map data rows to CSV string
       const csvData = data.map(r => [
         `"${r.user_id}"`, 
         r.type, 
@@ -321,7 +333,7 @@
         r.created_at
       ].join(",")).join("\n");
       
-      const csv = [headers.join(","), csvData].join("\n"); // Combine header and data
+      const csv = [headers.join(","), csvData].join("\n");
 
       // Download logic
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -330,25 +342,12 @@
       link.download = RESPONSES_TABLE + "_export.csv";
       link.click();
 
-      showMessage(`✅ ${data.length} records exported successfully from ${RESPONSES_TABLE}!`, "success");
+      showMessage(`✅ ${data.length} records exported successfully!`, "success");
     }
 
     window.signIn = signIn;
     window.submitResponse = submitResponse;
     window.exportToExcel = exportToExcel;
-    
-    // Initial fetch on page load if user is already logged in from a previous session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        // Trigger the state change manually to update the UI and fetch data
-        supabase.auth.onAuthStateChange((event, session) => {
-            if (event === 'INITIAL_SESSION') {
-                // If there's a session, the onAuthStateChange listener handles user setup and fetchUserResponses
-            }
-        });
-      }
-    });
-
   </script>
 </body>
 </html>
