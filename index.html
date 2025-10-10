@@ -91,11 +91,12 @@
     // === Supabase Configuration ===
     const RESPONSES_TABLE = "responses_v2";
     const ADMIN_EMAIL = "cian.mcadam@ucdconnect.ie";
-    const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
-    // *** Updated with fresh 'anon public' key ***
+    // Project URL must match the reference embedded in the keys below
+    const supabaseUrl = "https://szcqmwsnzqdciqablixv.supabase.co";
+    // Fresh 'anon public' key
     const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6Y3Ftd3NuenFkY2lxYWJsaXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkxNzg2OTMsImV4cCI6MjA3NDc1NDY5M30.LE3Qh79LqZacPRrcyvCJOZcJ9FLyADoK5r6dumoNZR0";
-    // *** Updated with fresh 'service_role' key ***
-    const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6Y3Ftd3NuenFkY2lxYWFsaXh2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTE3ODY5MywiZXhwIjoyMDc0NzU0NjkzfQ.rAay6ltzd5bfODomD5MtOGaa_7XYJRohffkBhUg6gys";
+    // Fresh 'service_role' key
+    const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6Y3Ftd3NuenFkY2lxYWJsaXh2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTE3ODY5MywiZXhwIjoyMDc0NzU0NjkzfQ.rAay6ltzd5bfODomD5MtOGaa_7XYJRohffkBhUg6gys";
 
     const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
     const serviceSupabase = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY, {
