@@ -192,44 +192,58 @@
     async function fetchUserResponses() {
       if (!user) return;
       
-      const { data, error } = await supabase
-        .from(RESPONSES_TABLE)
-        .select("type, a, b, c")
-        .eq("user_id", user.id);
-        
-      if (error) {
-        // Only show a message if it's not the "Policy forbids access" error (which is normal if table is empty/new)
-        if (!error.message.includes("Policy forbids access")) {
-             showMessage("Error fetching past responses: " + error.message, "error");
-        }
-        return;
-      }
-      
-      if (data && data.length > 0) {
-        data.forEach(response => {
-          const type = response.type.toLowerCase();
-          if (responses.hasOwnProperty(type)) {
-            responses[type] = { a: response.a, b: response.b, c: response.c };
-            
-            // Update the plot and result text to show saved data
-            const plotDivId = `plot-${type}`;
-            const resultId = `result-${type}`;
-            
-            // Restyle the plot with the fetched point
-            Plotly.restyle(plotDivId, { a: [[response.a]], b: [[response.b]], c: [[response.c]] }, [1]);
-            document.getElementById(resultId).innerText = `You submitted → Corporate: ${response.a.toFixed(2)}, Human: ${response.b.toFixed(2)}, Environmental: ${response.c.toFixed(2)}`;
-            
-            // Disable the button to prevent re-submission
-            const button = document.querySelector(`[onclick="submitResponse('${type}')"]`);
-            if (button) {
-              button.disabled = true;
-              button.textContent = `Submitted (${type === 'present' ? 'Present' : 'Future'})`;
-              button.classList.remove('bg-primary-blue', 'hover:bg-primary-hover');
-              button.classList.add('bg-gray-400', 'cursor-not-allowed');
-            }
-            showMessage(`Loaded previous ${type} response.`, "info");
+      try {
+        const { data, error } = await supabase
+          .from(RESPONSES_TABLE)
+          .select("type, a, b, c")
+          .eq("user_id", user.id);
+          
+        if (error) {
+          // Check for the specific RLS-related errors that indicate policy blocks
+          const policyErrors = ["Policy forbids access", "cannot find table in schema cache"];
+          if (!policyErrors.some(err => error.message.includes(err))) {
+              showMessage("Error fetching past responses: " + error.message, "error");
+          } else {
+              // Log the expected RLS/schema error, but don't show it to the user
+              console.warn(`Initial SELECT failed (Expected for RLS setup/Schema cache): ${error.message}`);
           }
-        });
+          return;
+        }
+        
+        if (data && data.length > 0) {
+          data.forEach(response => {
+            const type = response.type.toLowerCase();
+            if (responses.hasOwnProperty(type)) {
+              responses[type] = { a: response.a, b: response.b, c: response.c };
+              
+              // Update the plot and result text to show saved data
+              const plotDivId = `plot-${type}`;
+              const resultId = `result-${type}`;
+              
+              // Restyle the plot with the fetched point
+              Plotly.restyle(plotDivId, { a: [[response.a]], b: [[response.b]], c: [[response.c]] }, [1]);
+              document.getElementById(resultId).innerText = `You submitted → Corporate: ${response.a.toFixed(2)}, Human: ${response.b.toFixed(2)}, Environmental: ${response.c.toFixed(2)}`;
+              
+              // Disable the button to prevent re-submission
+              const button = document.querySelector(`[onclick="submitResponse('${type}')"]`);
+              if (button) {
+                button.disabled = true;
+                button.textContent = `Submitted (${type === 'present' ? 'Present' : 'Future'})`;
+                button.classList.remove('bg-primary-blue', 'hover:bg-primary-hover');
+                button.classList.add('bg-gray-400', 'cursor-not-allowed');
+              }
+              showMessage(`Loaded previous ${type} response.`, "info");
+            }
+          });
+        }
+      } catch (e) {
+        // Catch any uncaught network/syntax errors, but specifically ignore the schema cache issue 
+        // if the fetch call itself throws an error.
+        if (e.message.includes("schema cache")) {
+            console.warn(`Uncaught error during initial fetch (Schema cache issue): ${e.message}`);
+        } else {
+            showMessage("An unexpected error occurred during data load: " + e.message, "error");
+        }
       }
     }
 
@@ -245,6 +259,8 @@
       }
 
       // 1. Check for existing response in the new table (Redundant check, but good for safety)
+      // This is the check that will fail if RLS is fully blocking or schema is not visible.
+      // We will proceed to INSERT, as the INSERT policy only requires the user to be authenticated.
       const { data: existing, error: checkError } = await supabase
         .from(RESPONSES_TABLE)
         .select("id")
@@ -252,10 +268,8 @@
         .eq("type", type);
       
       if (checkError) {
-        // A common error here is RLS blocking SELECT, but INSERT might still work. 
-        // We log the error but proceed to INSERT unless it's a definitive policy block.
-        console.error("SELECT Check Error:", checkError.message);
-        // We will NOT show an error message here, we'll let the INSERT fail if necessary.
+        // Log the error but proceed to INSERT unless it's a definitive policy block.
+        console.error("SELECT Check Error during submission prep:", checkError.message);
       }
 
       if (existing && existing.length > 0) {
@@ -274,6 +288,7 @@
       }]);
 
       if (insertError) {
+        // If the INSERT fails, it is usually a definitive RLS or unique constraint error.
         showMessage("Error submitting: " + insertError.message, "error");
       } else {
         showMessage("✅ Response saved successfully to " + RESPONSES_TABLE + "!", "success");
