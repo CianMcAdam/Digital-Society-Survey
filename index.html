@@ -1,90 +1,72 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ternary Plot Survey with Supabase Login</title>
-  <!-- Load Tailwind CSS -->
+
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Load Plotly first -->
+  <!-- Plotly -->
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
-  <!-- Load Supabase -->
+  <!-- Supabase -->
   <script src="https://unpkg.com/@supabase/supabase-js"></script>
+
   <style>
-    /* Custom styles for Plotly container sizing */
-    #plot-present, #plot-future {
-      width: 100%;
-      min-height: 400px;
-    }
+    #plot-present, #plot-future { width: 100%; min-height: 400px; }
   </style>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-          },
-          colors: {
-            'primary-blue': '#1e40af',
-            'primary-hover': '#1d3f9b',
-            'success-green': '#059669',
-            'warning-yellow': '#f59e0b',
-          }
-        }
-      }
-    }
-  </script>
 </head>
 
 <body class="bg-gray-50 min-h-screen p-4 md:p-8 font-sans">
-
-  <!-- Global Message Box - Position adjusted to right-6 and max width increased -->
-  <div id="message-box" class="fixed top-4 right-6 z-[100] max-w-sm sm:max-w-md lg:max-w-lg">
-    <!-- Messages will be injected here -->
-  </div>
+  <!-- Message Box -->
+  <div id="message-box" class="fixed top-4 right-6 z-[100] max-w-sm sm:max-w-md lg:max-w-lg"></div>
 
   <div class="max-w-6xl mx-auto">
     <header class="mb-8 p-6 bg-white rounded-xl shadow-lg">
-        <h1 class="text-3xl font-extrabold text-primary-blue border-b-2 border-indigo-200 pb-3 mb-2">
-            Ternary Plot Survey
-        </h1>
-        <p class="text-gray-600 mb-4">
-            This survey features two ternary plots. On the first plot, please place a point to indicate how you think society **currently balances**
-            <b class="text-indigo-700">Corporate Rights</b>, <b class="text-indigo-700">Human Rights</b>, and <b class="text-indigo-700">Environmental Rights</b>.
-            On the second plot, indicate how you think society **will balance** these rights in the year **2075**.
-            You must log in before submitting.
-        </p>
+      <h1 class="text-3xl font-extrabold text-blue-800 border-b-2 border-blue-200 pb-3 mb-3">
+        Ternary Plot Survey
+      </h1>
+      <p class="text-gray-600 mb-4">
+        Please indicate how you think society currently balances
+        <b class="text-indigo-700">Corporate Rights</b>,
+        <b class="text-indigo-700">Human Rights</b>, and
+        <b class="text-indigo-700">Environmental Rights</b>, and how you think it
+        will balance them in 2075. You must log in before submitting.
+      </p>
 
-        <!-- Auth Section -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0">
-            <button class="px-5 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-150 shadow-md"
-                    onclick="signIn()">
-                Login with Magic Link
-            </button>
-            <p id="auth-status" class="px-4 py-2 text-sm font-semibold rounded-lg transition duration-150 shadow-inner bg-gray-200 text-gray-700">
-                Not logged in
-            </p>
-        </div>
-
-        <!-- Admin Banner -->
-        <div id="admin-banner" class="admin-banner hidden mt-4 p-3 rounded-lg border border-green-400 bg-green-100 text-green-800 font-bold">
-            ✅ Admin Mode Active — You can export all responses.
-        </div>
-
-        <!-- EXPORT BUTTON (Admin Only) -->
-        <button id="export-button" onclick="exportToExcel()" class="hidden mt-4 px-5 py-2 bg-success-green text-white font-semibold rounded-lg hover:bg-green-700 transition duration-150 shadow-lg">
-            Export All Responses to CSV (Excel)
+      <!-- Auth -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0">
+        <button onclick="signIn()" class="px-5 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition">
+          Login with Magic Link
         </button>
+        <p id="auth-status" class="px-4 py-2 text-sm font-semibold rounded-lg bg-gray-200 text-gray-700">
+          Not logged in
+        </p>
+      </div>
+
+      <!-- Admin Banner -->
+      <div id="admin-banner" class="hidden mt-4 p-3 rounded-lg border border-green-400 bg-green-100 text-green-800 font-bold">
+        ✅ Admin Mode Active — You can export all responses.
+      </div>
+
+      <!-- Export Button (Admin only) -->
+      <button id="export-button"
+        class="hidden mt-4 px-5 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition">
+        Export All Responses to CSV (Excel)
+      </button>
     </header>
 
-
+    <!-- Plots -->
     <div class="grid lg:grid-cols-2 gap-8 mt-8">
-      <!-- Present Day Plot -->
+      <!-- Present Plot -->
       <div class="bg-white p-6 rounded-xl shadow-xl">
-        <h2 class="text-2xl font-semibold text-primary-blue border-b border-indigo-200 pb-3 mb-4">Present Day Values</h2>
+        <h2 class="text-2xl font-semibold text-blue-800 border-b border-indigo-200 pb-3 mb-4">
+          Present Day Values
+        </h2>
         <div id="plot-present" class="w-full h-[450px] md:h-[550px]"></div>
-        <button class="w-full mt-6 px-4 py-2 bg-primary-blue text-white font-semibold rounded-lg hover:bg-primary-hover transition duration-150 shadow-md"
-                onclick="submitResponse('present')">
+        <button id="btn-present"
+          onclick="submitResponse('present')"
+          class="w-full mt-6 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">
           Submit Present Response
         </button>
         <p id="result-present" class="mt-3 text-sm text-gray-600 text-center"></p>
@@ -92,10 +74,13 @@
 
       <!-- Future Plot -->
       <div class="bg-white p-6 rounded-xl shadow-xl">
-        <h2 class="text-2xl font-semibold text-primary-blue border-b border-indigo-200 pb-3 mb-4">Values in 2075</h2>
+        <h2 class="text-2xl font-semibold text-blue-800 border-b border-indigo-200 pb-3 mb-4">
+          Values in 2075
+        </h2>
         <div id="plot-future" class="w-full h-[450px] md:h-[550px]"></div>
-        <button class="w-full mt-6 px-4 py-2 bg-primary-blue text-white font-semibold rounded-lg hover:bg-primary-hover transition duration-150 shadow-md"
-                onclick="submitResponse('future')">
+        <button id="btn-future"
+          onclick="submitResponse('future')"
+          class="w-full mt-6 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">
           Submit Future Response
         </button>
         <p id="result-future" class="mt-3 text-sm text-gray-600 text-center"></p>
@@ -104,301 +89,194 @@
   </div>
 
   <script>
-    // --- Message Box Implementation (Replaces alert()) ---
-    function showMessage(text, type = 'info') {
-      const box = document.createElement('div');
-      let bgColor, textColor, icon;
-
-      switch (type) {
-        case 'success':
-          bgColor = 'bg-success-green';
-          textColor = 'text-white';
-          icon = '✅';
-          break;
-        case 'error':
-          bgColor = 'bg-red-600';
-          textColor = 'text-white';
-          icon = '❌';
-          break;
-        case 'warning':
-          bgColor = 'bg-warning-yellow';
-          textColor = 'text-gray-900';
-          icon = '⚠️';
-          break;
-        case 'info':
-        default:
-          bgColor = 'bg-indigo-500';
-          textColor = 'text-white';
-          icon = 'ℹ️';
-      }
-
-      // Initial State: Start off-screen right with full width translation and opacity 0
-      box.className = `p-4 mb-2 rounded-lg shadow-xl font-semibold ${bgColor} ${textColor} opacity-0 transition-all duration-500 transform translate-x-full`;
-
-      // Use a container div to help manage width and prevent overlap with scrollbar
-      box.innerHTML = `<div class="flex items-start space-x-2">${icon}<span class="flex-1">${text}</span></div>`;
-
-      const container = document.getElementById('message-box');
-      container.appendChild(box);
-
-      // Slide in and fade up (Transition to final state: opacity 1, translateX(0))
-      setTimeout(() => {
-        box.style.opacity = 1;
-        box.style.transform = 'translateX(0)'; 
-      }, 10);
-
-      // Slide out and remove
-      setTimeout(() => {
-        box.style.opacity = 0;
-        box.style.transform = 'translateY(100px)'; // Slide down and fade out
-        setTimeout(() => box.remove(), 500); // Wait for fade-out transition
-      }, 5000);
-    }
-
-
-    // Admin Email
+    // --- CONFIG ---
     const ADMIN_EMAIL = "cian.mcadam@ucdconnect.ie";
-
-    // Supabase Configuration
     const supabaseUrl = "https://ttqxpcstznjxkmznyxis.supabase.co";
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
-    // WARNING: Exposing the Service Role Key client-side is a security risk
-    // This is done here only for demonstration in a restricted environment.
-    const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTQ0MTIxOCwiZXhwIjoyMDc1MDE3MjE4fQ.WT_z-BJRTfu9EqO1Fig515aYF9FUOQGOQQgJ86AjM3Q";
-
+    const supabaseKey =
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDEyMTgsImV4cCI6MjA3NTAxNzIxOH0.RD-TfpgcLWhBF6G8Y8AeEI9pZTsDKQu-r-fMzvYtgG4";
+    const SUPABASE_SERVICE_KEY =
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0cXhwY3N0em5qeGttem55eGlzIiwicm9zZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTQ0MTIxOCwiZXhwIjoyMDc1MDE3MjE4fQ.WT_z-BJRTfu9EqO1Fig515aYF9FUOQGOQQgJ86AjM3Q";
     const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
+    let user = null;
     let responses = {
       present: { a: 1/3, b: 1/3, c: 1/3 },
       future: { a: 1/3, b: 1/3, c: 1/3 }
     };
-    let user = null;
 
-    // Plot Creation
-    function makePlot(divId, resultId, label) {
-      const initial = responses[label.toLowerCase()];
-
-      const userDot = {
-        type: 'scatterternary',
-        mode: 'markers',
-        a: [initial.a],
-        b: [initial.b],
-        c: [initial.c],
-        marker: { size: 16, color: 'rgb(31, 119, 180)', line: { width: 2, color: 'white' } },
-        name: "Your Choice"
+    // --- Utility Message Box ---
+    function showMessage(text, type = 'info') {
+      const box = document.createElement('div');
+      const colors = {
+        success: 'bg-green-600',
+        error: 'bg-red-600',
+        warning: 'bg-yellow-500',
+        info: 'bg-indigo-500'
       };
-
-      const gridPoints = [];
-      for (let a = 0; a <= 1; a += 0.01) {
-        for (let b = 0; b <= 1 - a; b += 0.01) {
-          const c = 1 - a - b;
-          const sum = a + b + c;
-          gridPoints.push({ a: a/sum, b: b/sum, c: c/sum });
-        }
-      }
-
-      const clickableLayer = {
-        type: 'scatterternary',
-        mode: 'markers',
-        a: gridPoints.map(p => p.a),
-        b: gridPoints.map(p => p.b),
-        c: gridPoints.map(p => p.c),
-        marker: { size: 20, color: 'rgba(0,0,0,0)', opacity: 0 }, // Invisible targets
-        hoverinfo: 'none'
-      };
-
-      const data = [clickableLayer, userDot];
-      const layout = {
-        ternary: {
-          sum: 1, // Ensure sum constraint
-          aaxis: { title: "Corporate Rights", min: 0.01, max: 1, tickformat: '.2f', linecolor: '#333' },
-          baxis: { title: "Human Rights", min: 0.01, max: 1, tickformat: '.2f', linecolor: '#333' },
-          caxis: { title: "Environmental Rights", min: 0.01, max: 1, tickformat: '.2f', linecolor: '#333' },
-          bgcolor: '#f9f9f9'
-        },
-        title: { text: label + " Values", font: { size: 18, family: 'Inter' } },
-        margin: { t: 50, r: 0, b: 50, l: 0 },
-        height: document.getElementById(divId).offsetHeight, // Use container height
-        autosize: true
-      };
-
-      Plotly.newPlot(divId, data, layout, { responsive: true, displayModeBar: false });
-
-      const plotDiv = document.getElementById(divId);
-      const type = label.toLowerCase();
-
-      // Update the initial result text
-      const initialA = initial.a.toFixed(2), initialB = initial.b.toFixed(2), initialC = initial.c.toFixed(2);
-      document.getElementById(resultId).innerText =
-        `Initial selection → Corporate: ${initialA}, Human: ${initialB}, Environmental: ${initialC}`;
-
-      plotDiv.on('plotly_click', function(eventData) {
-        const pt = eventData.points[0];
-        if (!pt || !pt.hasOwnProperty('a') || pt.curveNumber !== 0) return;
-
-        const { a, b, c } = pt;
-        
-        // Normalize the values to ensure they sum exactly to 1,
-        const sum = a + b + c;
-        const normA = a / sum;
-        const normB = b / sum;
-        const normC = c / sum;
-
-        responses[type] = { a: normA, b: normB, c: normC };
-
-        // Restyle the user dot (index 1 of the data array)
-        Plotly.restyle(divId, { a: [[normA]], b: [[normB]], c: [[normC]] }, [1]);
-
-        // Update display text
-        document.getElementById(resultId).innerText =
-          `You chose → Corporate: ${normA.toFixed(2)}, Human: ${normB.toFixed(2)}, Environmental: ${normC.toFixed(2)}`;
-      });
+      const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+      box.className = `p-4 mb-2 rounded-lg shadow-xl font-semibold text-white ${colors[type]} opacity-0 transition-all duration-500 transform translate-x-full`;
+      box.innerHTML = `<div class="flex items-start space-x-2">${icons[type]}<span>${text}</span></div>`;
+      document.getElementById('message-box').appendChild(box);
+      setTimeout(() => { box.style.opacity = 1; box.style.transform = 'translateX(0)'; }, 10);
+      setTimeout(() => { box.style.opacity = 0; box.style.transform = 'translateY(100px)'; setTimeout(() => box.remove(), 500); }, 5000);
     }
 
-    // Initialize plots on load
-    window.onload = function() {
-      makePlot("plot-present", "result-present", "Present");
-      makePlot("plot-future", "result-future", "Future");
-      // Add a resize listener to ensure Plotly recalculates size on window resize
-      window.addEventListener('resize', () => {
-        Plotly.relayout('plot-present', { autosize: true });
-        Plotly.relayout('plot-future', { autosize: true });
-      });
-    };
-
-    // Login with Magic Link
+    // --- Auth ---
     async function signIn() {
       const email = prompt("Enter your email to receive a login link:");
       if (!email) return;
-
-      try {
-        const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: { emailRedirectTo: window.location.href.split(/[?#]/)[0] }
-        });
-        if (error) {
-          showMessage("Login Error: " + error.message, 'error');
-        } else {
-          showMessage("Success! Check your email for a magic login link to access the survey.", 'success');
-        }
-      } catch (e) {
-        showMessage("An unexpected error occurred during sign-in.", 'error');
-      }
+      const { error } = await supabase.auth.signInWithOtp({
+        email, options: { emailRedirectTo: window.location.href.split(/[?#]/)[0] },
+      });
+      if (error) showMessage("Login Error: " + error.message, 'error');
+      else showMessage("✅ Check your email for a magic link.", 'success');
     }
 
-    // Auth Listener - Controls User Display and Admin Access
-    supabase.auth.onAuthStateChange((event, session) => {
-      const authStatus = document.getElementById("auth-status");
-      const exportButton = document.getElementById("export-button");
-      const adminBanner = document.getElementById("admin-banner");
-      
-      authStatus.classList.remove('bg-gray-200', 'text-gray-700', 'bg-warning-yellow', 'text-gray-900', 'bg-green-200', 'text-green-800');
-
-      if (session && session.user) {
-        user = session.user;
-        const isAdmin = user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-
-        // 1. Display logged-in user's email
-        authStatus.innerText = `✅ Logged in as: ${user.email} ${isAdmin ? '(Admin)' : ''}`;
-        authStatus.classList.add(isAdmin ? 'bg-green-200' : 'bg-warning-yellow', isAdmin ? 'text-green-800' : 'text-gray-900');
-
-        // 2. Control visibility of Export button and Admin Banner
-        exportButton.classList.toggle("hidden", !isAdmin);
-        adminBanner.classList.toggle("hidden", !isAdmin);
-      } else {
-        user = null;
-        authStatus.innerText = "Not logged in";
-        authStatus.classList.add('bg-gray-200', 'text-gray-700');
-
-        exportButton.classList.add("hidden");
-        adminBanner.classList.add("hidden");
+    // --- On Load: Check existing session ---
+    window.addEventListener("DOMContentLoaded", async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData?.session?.user) {
+        user = sessionData.session.user;
+        updateUIForUser();
       }
     });
 
-    // Submit Response
+    // --- Auth State Listener ---
+    supabase.auth.onAuthStateChange(async (_, session) => {
+      user = session?.user || null;
+      updateUIForUser();
+    });
+
+    async function updateUIForUser() {
+      const authStatus = document.getElementById("auth-status");
+      const exportButton = document.getElementById("export-button");
+      const adminBanner = document.getElementById("admin-banner");
+
+      if (user) {
+        const isAdmin = user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+        authStatus.innerText = `✅ Logged in as: ${user.email} ${isAdmin ? "(Admin)" : ""}`;
+        exportButton.classList.toggle("hidden", !isAdmin);
+        adminBanner.classList.toggle("hidden", !isAdmin);
+        await disableSubmittedButtons();
+      } else {
+        authStatus.innerText = "Not logged in";
+        exportButton.classList.add("hidden");
+        adminBanner.classList.add("hidden");
+      }
+    }
+
+    // --- Disable submit buttons if already submitted ---
+    async function disableSubmittedButtons() {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from("responses")
+        .select("type")
+        .eq("user_id", user.id);
+
+      if (error) return console.error(error);
+      (data || []).forEach(r => {
+        const btn = document.getElementById(`btn-${r.type}`);
+        if (btn) {
+          btn.disabled = true;
+          btn.classList.add("opacity-60", "cursor-not-allowed");
+          btn.innerText = `Already Submitted (${r.type})`;
+        }
+      });
+    }
+
+    // --- Submit Response (one per user per plot) ---
     async function submitResponse(type) {
       if (!user) return showMessage("Please log in first.", 'warning');
 
-      try {
-        // 1. Check for existing response
-        const { data: existing, error: fetchError } = await supabase
-          .from("responses")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("type", type);
+      const { data: existing } = await supabase
+        .from("responses")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("type", type);
 
-        if (fetchError) {
-          return showMessage("Error checking previous responses: " + fetchError.message, 'error');
-        }
+      if (existing?.length > 0)
+        return showMessage("⚠️ You already submitted for this plot.", 'warning');
 
-        if (existing && existing.length > 0) {
-          return showMessage("⚠️ You already submitted for this plot.", 'warning');
-        }
+      const { error } = await supabase.from("responses").insert([{
+        user_id: user.id,
+        type,
+        a: responses[type].a,
+        b: responses[type].b,
+        c: responses[type].c,
+      }]);
 
-        // 2. Insert new response
-        const { error: insertError } = await supabase.from("responses").insert([{
-          user_id: user.id,
-          type,
-          a: responses[type].a,
-          b: responses[type].b,
-          c: responses[type].c
-        }]);
-
-        if (insertError) {
-          showMessage("Error submitting: " + insertError.message, 'error');
-        } else {
-          showMessage("✅ Response saved successfully!", 'success');
-        }
-      } catch (e) {
-        showMessage("An unexpected error occurred during submission.", 'error');
+      if (error) showMessage("Error submitting: " + error.message, 'error');
+      else {
+        showMessage("✅ Response saved successfully!", 'success');
+        disableSubmittedButtons();
       }
     }
 
-    // Export to CSV (Admin Only) - Includes the secondary logic check
+    // --- Plot Rendering ---
+    function makePlot(divId, resultId, label) {
+      const type = label.toLowerCase();
+      const init = responses[type];
+      const userDot = {
+        type: "scatterternary", mode: "markers",
+        a: [init.a], b: [init.b], c: [init.c],
+        marker: { size: 14, color: "blue" }
+      };
+      const grid = [];
+      for (let a = 0; a <= 1; a += 0.02)
+        for (let b = 0; b <= 1 - a; b += 0.02)
+          grid.push({ a, b, c: 1 - a - b });
+      const clickLayer = {
+        type: "scatterternary", mode: "markers",
+        a: grid.map(p => p.a), b: grid.map(p => p.b), c: grid.map(p => p.c),
+        marker: { size: 18, color: "rgba(0,0,0,0)" }, hoverinfo: "none"
+      };
+      Plotly.newPlot(divId, [clickLayer, userDot], {
+        ternary: {
+          aaxis: { title: "Corporate Rights" },
+          baxis: { title: "Human Rights" },
+          caxis: { title: "Environmental Rights" },
+        }, title: label
+      });
+      document.getElementById(divId).on("plotly_click", e => {
+        const { a, b, c } = e.points[0];
+        responses[type] = { a, b, c };
+        Plotly.restyle(divId, { a: [[a]], b: [[b]], c: [[c]] }, [1]);
+        document.getElementById(resultId).innerText =
+          `You chose → Corporate: ${a.toFixed(2)}, Human: ${b.toFixed(2)}, Environmental: ${c.toFixed(2)}`;
+      });
+    }
+
+    window.onload = () => {
+      makePlot("plot-present", "result-present", "Present");
+      makePlot("plot-future", "result-future", "Future");
+    };
+
+    // --- Export (Admin only) ---
     async function exportToExcel() {
-      // Secondary check to prevent non-admins from triggering export logic
       if (!user || user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase())
         return showMessage("🛑 Only admin can export data.", 'error');
 
-      try {
-        // Use the Service Role key to bypass Row Level Security (RLS) for the export.
-        const serviceSupabase = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY);
-        
-        const { data, error } = await serviceSupabase.from("responses").select("*");
-        
-        if (error) return showMessage("Error fetching data: " + error.message, 'error');
-        if (!data || !data.length) return showMessage("No responses found to export.", 'info');
+      const serviceSupabase = window.supabase.createClient(supabaseUrl, SUPABASE_SERVICE_KEY);
+      const { data, error } = await serviceSupabase.from("responses").select("*");
 
-        // CSV generation
-        const headers = ["user_id", "type", "corporate_a", "human_b", "environmental_c", "created_at"];
-        const csvContent = data.map(r => [
-          `"${r.user_id}"`,
-          r.type, 
-          r.a, 
-          r.b, 
-          r.c, 
-          `"${r.created_at}"`
-        ].join(",")).join("\n");
+      if (error) return showMessage("Error fetching data: " + error.message, 'error');
+      if (!data.length) return showMessage("No responses found.", 'info');
 
-        const csv = headers.join(",") + "\n" + csvContent;
+      const csv = [
+        ["user_id", "type", "a", "b", "c", "created_at"],
+        ...data.map(r => [r.user_id, r.type, r.a, r.b, r.c, r.created_at]),
+      ].map(row => row.join(",")).join("\n");
 
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "ternary_plot_responses_export.csv";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "ternary_plot_responses_export.csv";
+      link.click();
 
-        showMessage(`✅ ${data.length} records exported successfully.`, 'success');
-
-      } catch (e) {
-        showMessage("An unexpected error occurred during export.", 'error');
-      }
+      showMessage(`✅ ${data.length} records exported successfully.`, 'success');
     }
 
-    // Expose functions globally
+    // Expose globals
     window.signIn = signIn;
     window.submitResponse = submitResponse;
     window.exportToExcel = exportToExcel;
